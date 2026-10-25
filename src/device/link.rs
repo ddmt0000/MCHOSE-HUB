@@ -1,15 +1,19 @@
+use std::path::PathBuf;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use crate::model::Model;
 use crate::protocol::{
     build_write_packets, get_battery_request, get_keys_request, get_light_request,
-    get_performance_request, Battery, KeyLayer, LightState, Packet, Performance, ReadAssembler,
-    WriteMode, CMD_GET_BATTERY, CMD_GET_KEYS, CMD_GET_LIGHT, CMD_GET_PERFORMANCE, CMD_SET_KEYS,
-    CMD_SET_LIGHT, CMD_SET_PERFORMANCE, REPORT_ID,
+    get_performance_request, wired_battery_request, wired_keys_request, wired_keys_write,
+    wired_light_request, wired_light_write, wired_performance_request, wired_performance_write,
+    wired_response, Battery, KeyLayer, LightState, Packet, Performance, ReadAssembler, WriteMode,
+    CMD_GET_BATTERY, CMD_GET_KEYS, CMD_GET_LIGHT, CMD_GET_PERFORMANCE, CMD_SET_KEYS, CMD_SET_LIGHT,
+    CMD_SET_PERFORMANCE, LIGHT_LEN, PERF_LEN, REPORT_ID, WIRED_CMD_GET_BATTERY, WIRED_CMD_GET_KEYS,
+    WIRED_CMD_GET_LIGHT, WIRED_CMD_GET_PERFORMANCE, WIRED_KEYS_READ_LEN, WIRED_REPORT_LEN,
 };
 
-use super::hidraw::{find_receiver, DeviceError, DeviceInfo, HidrawDevice};
+use super::hidraw::{find_receiver, find_wired, DeviceError, DeviceInfo, HidrawDevice};
 
 pub trait KeyboardLink: Send {
     fn info(&self) -> &DeviceInfo;
@@ -28,8 +32,7 @@ pub struct RealLink {
 }
 
 impl RealLink {
-    pub fn open(model: &Model) -> Result<Self, DeviceError> {
-        let info = find_receiver(model)?;
+    pub fn open_info(info: DeviceInfo) -> Result<Self, DeviceError> {
         log::info!("using {} ({})", info.product_name, info.hidraw);
         let dev = HidrawDevice::open(info)?;
         Ok(Self { dev })
@@ -203,5 +206,249 @@ impl KeyboardLink for RealLink {
             Duration::from_secs(3),
         )?;
         Ok(Battery::from_bytes(&data)?)
+    }
+}
+
+pub struct WiredLink {
+    dev: HidrawDevice,
+    report_id: u8,
+}
+
+impl WiredLink {
+    pub fn open_info(info: DeviceInfo, report_id: u8) -> Result<Self, DeviceError> {
+        log::info!("using {} ({}) over USB", info.product_name, info.hidraw);
+        let dev = HidrawDevice::open(info)?;
+        Ok(Self { dev, report_id })
+    }
+
+    fn read_data(
+        &mut self,
+        request: &[u8; WIRED_REPORT_LEN],
+        command: u8,
+        length: usize,
+    ) -> Result<Vec<u8>, DeviceError> {
+        for attempt in 0..3 {
+            self.send_feature(request)?;
+            sleep(Duration::from_millis(60));
+            let deadline = Instant::now() + Duration::from_millis(600);
+            loop {
+                match self.dev.get_feature(self.report_id) {
+                    Ok(buffer) => match wired_response(&buffer, command) {
+                        Ok(data) if data.len() >= length => {
+                            return Ok(data[..length].to_vec());
+                        }
+                        Ok(data) => log::debug!(
+                            "wired command {command:#04x}: short response ({} bytes)",
+                            data.len()
+                        ),
+                        Err(e) => log::debug!("wired command {command:#04x}: {e}"),
+                    },
+                    Err(e) => log::debug!("wired get_feature failed: {e}"),
+                }
+                if Instant::now() >= deadline {
+                    break;
+                }
+                sleep(Duration::from_millis(40));
+            }
+            log::warn!("wired command {command:#04x} timed out (attempt {attempt})");
+        }
+        Err(DeviceError::Timeout)
+    }
+
+    fn send_feature(&mut self, report: &[u8; WIRED_REPORT_LEN]) -> Result<(), DeviceError> {
+        for attempt in 0..3 {
+            match self.dev.set_feature(self.report_id, report) {
+                Ok(()) => return Ok(()),
+                Err(e) if attempt < 2 => {
+                    log::warn!("wired feature write failed ({e}); retrying");
+                    sleep(Duration::from_millis(120));
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        unreachable!()
+    }
+
+    fn send_report(&mut self, report: &[u8; WIRED_REPORT_LEN]) -> Result<(), DeviceError> {
+        self.send_feature(report)?;
+        sleep(Duration::from_millis(200));
+        Ok(())
+    }
+}
+
+impl KeyboardLink for WiredLink {
+    fn info(&self) -> &DeviceInfo {
+        &self.dev.info
+    }
+
+    fn is_present(&self) -> bool {
+        self.dev.is_present()
+    }
+
+    fn read_performance(&mut self) -> Result<Performance, DeviceError> {
+        let data = self.read_data(
+            &wired_performance_request(),
+            WIRED_CMD_GET_PERFORMANCE,
+            PERF_LEN,
+        )?;
+        Ok(Performance::from_bytes(&data)?)
+    }
+
+    fn write_performance(&mut self, performance: &Performance) -> Result<(), DeviceError> {
+        self.send_report(&wired_performance_write(performance))?;
+        let readback = self.read_performance()?;
+        if readback.raw() != performance.raw() {
+            return Err(DeviceError::Verify("性能设置写回校验失败"));
+        }
+        Ok(())
+    }
+
+    fn read_keys(&mut self, layer: u8) -> Result<KeyLayer, DeviceError> {
+        let data = self.read_data(
+            &wired_keys_request(layer),
+            WIRED_CMD_GET_KEYS,
+            WIRED_KEYS_READ_LEN,
+        )?;
+        Ok(KeyLayer::from_read(&data)?)
+    }
+
+    fn write_keys(&mut self, layer: u8, keys: &KeyLayer) -> Result<(), DeviceError> {
+        self.send_report(&wired_keys_write(layer, keys))?;
+        let readback = self.read_keys(layer)?;
+        if readback.keys != keys.keys {
+            return Err(DeviceError::Verify("按键写回校验失败"));
+        }
+        Ok(())
+    }
+
+    fn read_light(&mut self) -> Result<LightState, DeviceError> {
+        let data = self.read_data(&wired_light_request(), WIRED_CMD_GET_LIGHT, LIGHT_LEN)?;
+        Ok(LightState::from_bytes(&data)?)
+    }
+
+    fn write_light(&mut self, light: &LightState) -> Result<(), DeviceError> {
+        self.send_report(&wired_light_write(light))?;
+        let readback = self.read_light()?;
+        if readback.raw() != light.raw() {
+            return Err(DeviceError::Verify("灯效写回校验失败"));
+        }
+        Ok(())
+    }
+
+    fn read_battery(&mut self) -> Result<Battery, DeviceError> {
+        let data = self.read_data(&wired_battery_request(), WIRED_CMD_GET_BATTERY, 2)?;
+        Ok(Battery::from_bytes(&data)?)
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum Presence {
+    #[default]
+    Absent,
+    Denied(PathBuf),
+    Available(DeviceInfo),
+}
+
+impl Presence {
+    pub fn info(&self) -> Option<&DeviceInfo> {
+        match self {
+            Self::Available(info) => Some(info),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Discovery {
+    pub wired: Presence,
+    pub wireless: Presence,
+}
+
+fn presence(result: Result<DeviceInfo, DeviceError>) -> Presence {
+    match result {
+        Ok(info) => Presence::Available(info),
+        Err(DeviceError::Permission { path }) => Presence::Denied(path),
+        Err(_) => Presence::Absent,
+    }
+}
+
+pub fn discover(model: &Model) -> Discovery {
+    Discovery {
+        wired: presence(find_wired(model)),
+        wireless: presence(find_receiver(model)),
+    }
+}
+
+pub fn open_detected(
+    discovery: &Discovery,
+    model: &Model,
+) -> Result<Box<dyn KeyboardLink>, DeviceError> {
+    let mut last_error = None;
+    if let Some(info) = discovery.wired.info() {
+        match WiredLink::open_info(info.clone(), model.report.wired_id) {
+            Ok(link) => return Ok(Box::new(link)),
+            Err(e) => {
+                log::warn!("cannot open wired interface: {e}");
+                last_error = Some(e);
+            }
+        }
+    }
+    if let Some(info) = discovery.wireless.info() {
+        match RealLink::open_info(info.clone()) {
+            Ok(link) => return Ok(Box::new(link)),
+            Err(e) => {
+                log::warn!("cannot open wireless receiver: {e}");
+                last_error = Some(e);
+            }
+        }
+    }
+    if let Some(e) = last_error {
+        return Err(e);
+    }
+    for presence in [&discovery.wired, &discovery.wireless] {
+        if let Presence::Denied(path) = presence {
+            return Err(DeviceError::Permission { path: path.clone() });
+        }
+    }
+    Err(DeviceError::NotFound)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::device::hidraw::Transport;
+    use std::path::PathBuf;
+
+    fn info(transport: Transport, path: &str) -> DeviceInfo {
+        DeviceInfo {
+            vendor_id: 0x05ac,
+            product_id: 0x024f,
+            product_name: "test".to_string(),
+            hidraw: "test0".to_string(),
+            path: PathBuf::from(path),
+            transport,
+        }
+    }
+
+    #[test]
+    fn wired_is_preferred_when_both_are_available() {
+        let model = Model::load();
+        let discovery = Discovery {
+            wired: Presence::Available(info(Transport::Wired, "/dev/null")),
+            wireless: Presence::Available(info(Transport::Wireless, "/dev/null")),
+        };
+        let link = open_detected(&discovery, &model).unwrap();
+        assert_eq!(link.info().transport, Transport::Wired);
+    }
+
+    #[test]
+    fn falls_back_to_wireless_when_wired_cannot_open() {
+        let model = Model::load();
+        let discovery = Discovery {
+            wired: Presence::Available(info(Transport::Wired, "/nonexistent/mchose")),
+            wireless: Presence::Available(info(Transport::Wireless, "/dev/null")),
+        };
+        let link = open_detected(&discovery, &model).unwrap();
+        assert_eq!(link.info().transport, Transport::Wireless);
     }
 }

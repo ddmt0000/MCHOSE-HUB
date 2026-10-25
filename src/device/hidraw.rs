@@ -7,20 +7,38 @@ use std::time::Duration;
 use thiserror::Error;
 
 use crate::model::Model;
-use crate::protocol::REPORT_ID;
+use crate::protocol::{REPORT_ID, WIRED_BUFFER_LEN, WIRED_REPORT_LEN};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Transport {
+    Wireless,
+    Wired,
+    Simulated,
+}
+
+impl Transport {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Wireless => "2.4G 无线接收器",
+            Self::Wired => "USB 有线",
+            Self::Simulated => "模拟设备",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeviceInfo {
     pub vendor_id: u16,
     pub product_id: u16,
     pub product_name: String,
     pub hidraw: String,
     pub path: PathBuf,
+    pub transport: Transport,
 }
 
 #[derive(Debug, Error)]
 pub enum DeviceError {
-    #[error("未检测到 MCHOSE 2.4G 接收器")]
+    #[error("未检测到 MCHOSE K99（USB 有线或 2.4G 接收器）")]
     NotFound,
     #[error("无权访问 {path}。请安装 udev 规则或把用户加入 input/plugdev 组。")]
     Permission { path: PathBuf },
@@ -33,6 +51,10 @@ pub enum DeviceError {
     #[error("{0}")]
     Verify(&'static str),
 }
+
+// _IOWR('H', 0x07, 520) / _IOWR('H', 0x06, 520): feature payload plus report ID.
+const HIDIOCGFEATURE_520: libc::c_ulong = 0xc208_4807;
+const HIDIOCSFEATURE_520: libc::c_ulong = 0xc208_4806;
 
 pub struct HidrawDevice {
     pub info: DeviceInfo,
@@ -115,6 +137,45 @@ impl HidrawDevice {
             }
         }
     }
+
+    /// Read the wired vendor feature report; the report ID is stripped from
+    /// the returned payload.
+    pub fn get_feature(&mut self, report_id: u8) -> Result<Vec<u8>, DeviceError> {
+        let mut buffer = [0u8; WIRED_BUFFER_LEN];
+        buffer[0] = report_id;
+        let rc = unsafe {
+            libc::ioctl(
+                self.file.as_raw_fd(),
+                HIDIOCGFEATURE_520,
+                buffer.as_mut_ptr(),
+            )
+        };
+        if rc < 0 {
+            return Err(DeviceError::Io(io::Error::last_os_error()));
+        }
+        Ok(buffer[1..].to_vec())
+    }
+
+    pub fn set_feature(
+        &mut self,
+        report_id: u8,
+        payload: &[u8; WIRED_REPORT_LEN],
+    ) -> Result<(), DeviceError> {
+        let mut buffer = [0u8; WIRED_BUFFER_LEN];
+        buffer[0] = report_id;
+        buffer[1..].copy_from_slice(payload);
+        let rc = unsafe {
+            libc::ioctl(
+                self.file.as_raw_fd(),
+                HIDIOCSFEATURE_520,
+                buffer.as_mut_ptr(),
+            )
+        };
+        if rc < 0 {
+            return Err(DeviceError::Io(io::Error::last_os_error()));
+        }
+        Ok(())
+    }
 }
 
 fn read_uevent(hidraw: &Path) -> Option<(u16, u16, String)> {
@@ -143,6 +204,111 @@ fn has_vendor_output_report(hidraw: &Path) -> bool {
     let has_vendor_page = desc.windows(3).any(|w| w == [0x06, 0x02, 0xff]);
     let has_report_id = desc.windows(2).any(|w| w == [0x85, REPORT_ID]);
     has_vendor_page && has_report_id
+}
+
+fn feature_report_length(descriptor: &[u8], report_id: u8) -> Option<usize> {
+    let mut usage_page = 0u16;
+    let mut current_report = 0u8;
+    let mut report_count = 0u32;
+    let mut report_size = 0u32;
+    let mut i = 0;
+    while i < descriptor.len() {
+        let prefix = descriptor[i];
+        i += 1;
+        if prefix == 0xfe {
+            if i + 2 > descriptor.len() {
+                break;
+            }
+            let len = descriptor[i] as usize;
+            i += 1 + len + 1;
+            continue;
+        }
+        let size = match prefix & 0x03 {
+            0 => 0,
+            1 => 1,
+            2 => 2,
+            _ => 4,
+        };
+        if i + size > descriptor.len() {
+            break;
+        }
+        let data = &descriptor[i..i + size];
+        i += size;
+        let item_type = (prefix >> 2) & 0x03;
+        let tag = (prefix >> 4) & 0x0f;
+        let value = data
+            .iter()
+            .rev()
+            .fold(0u32, |acc, byte| (acc << 8) | u32::from(*byte));
+        match (item_type, tag) {
+            (1, 0x0) => usage_page = value as u16,
+            (1, 0x7) => report_size = value,
+            (1, 0x8) => current_report = value as u8,
+            (1, 0x9) => report_count = value,
+            (0, 0xb) => {
+                let bytes = (report_count as usize * report_size as usize).div_ceil(8);
+                if usage_page == 0xff00 && current_report == report_id && bytes == WIRED_REPORT_LEN
+                {
+                    return Some(bytes);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn has_wired_feature_report(hidraw: &Path, report_id: u8) -> bool {
+    fs::read(hidraw.join("device/report_descriptor"))
+        .ok()
+        .and_then(|desc| feature_report_length(&desc, report_id))
+        .is_some()
+}
+
+pub fn find_wired(model: &Model) -> Result<DeviceInfo, DeviceError> {
+    let mut permission: Option<PathBuf> = None;
+    let Ok(entries) = fs::read_dir("/sys/class/hidraw") else {
+        return Err(DeviceError::NotFound);
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !name.starts_with("hidraw") {
+            continue;
+        }
+        let sys = entry.path();
+        let Some((vid, pid, product_name)) = read_uevent(&sys) else {
+            continue;
+        };
+        if vid != model.receiver.vendor_id
+            || pid != model.receiver.product_id
+            || !product_name.to_ascii_uppercase().contains("MCHOSE")
+        {
+            continue;
+        }
+        if !has_wired_feature_report(&sys, model.report.wired_id) {
+            continue;
+        }
+        let path = PathBuf::from("/dev").join(&name);
+        match OpenOptions::new().read(true).write(true).open(&path) {
+            Ok(file) => {
+                drop(file);
+                return Ok(DeviceInfo {
+                    vendor_id: vid,
+                    product_id: pid,
+                    product_name,
+                    hidraw: name,
+                    path,
+                    transport: Transport::Wired,
+                });
+            }
+            Err(e) if e.kind() == io::ErrorKind::PermissionDenied => permission = Some(path),
+            Err(_) => {}
+        }
+    }
+    match permission {
+        Some(path) => Err(DeviceError::Permission { path }),
+        None => Err(DeviceError::NotFound),
+    }
 }
 
 pub fn find_receiver(model: &Model) -> Result<DeviceInfo, DeviceError> {
@@ -179,6 +345,7 @@ pub fn find_receiver(model: &Model) -> Result<DeviceInfo, DeviceError> {
                     product_name: product_name.clone(),
                     hidraw: name,
                     path,
+                    transport: Transport::Wireless,
                 });
             }
             Err(e) if e.kind() == io::ErrorKind::PermissionDenied => permission = Some(path),
@@ -192,4 +359,27 @@ pub fn find_receiver(model: &Model) -> Result<DeviceInfo, DeviceError> {
         return Err(DeviceError::Permission { path });
     }
     Err(DeviceError::NotFound)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detects_vendor_feature_report() {
+        let descriptor = [
+            0x06, 0x00, 0xff, 0x09, 0x01, 0xa1, 0x01, 0x85, 0x06, 0x75, 0x08, 0x96, 0x07, 0x02,
+            0xb1, 0x02, 0xc0,
+        ];
+        assert_eq!(feature_report_length(&descriptor, 6), Some(519));
+        assert_eq!(feature_report_length(&descriptor, 5), None);
+    }
+
+    #[test]
+    fn ignores_short_vendor_feature() {
+        let descriptor = [
+            0x06, 0x00, 0xff, 0x85, 0x05, 0x75, 0x08, 0x95, 0x05, 0xb1, 0x02,
+        ];
+        assert_eq!(feature_report_length(&descriptor, 5), None);
+    }
 }

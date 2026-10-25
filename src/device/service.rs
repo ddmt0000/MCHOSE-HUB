@@ -5,19 +5,16 @@ use std::time::{Duration, Instant};
 use crate::model::Model;
 use crate::protocol::{Battery, KeyLayer, LightState, Performance};
 
-use super::hidraw::DeviceError;
-use super::link::{KeyboardLink, RealLink};
+use super::hidraw::{DeviceError, Transport};
+use super::link::{discover, open_detected, Discovery, KeyboardLink, WiredLink};
 use super::mock::MockLink;
 
 // Messages are short-lived; boxing the large variants would only add noise.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum Event {
-    Connected {
-        port: String,
-        product_name: String,
-        simulated: bool,
-    },
+    Detected(Discovery),
+    Connected { transport: Transport },
     Disconnected,
     Battery(Battery),
     Performance(Performance),
@@ -91,6 +88,18 @@ fn emit_error(tx: &async_channel::Sender<Event>, last: &mut String, message: imp
     }
 }
 
+fn publish_discovery(
+    tx: &async_channel::Sender<Event>,
+    last: &mut Option<Discovery>,
+    discovery: Discovery,
+) {
+    if last.as_ref() == Some(&discovery) {
+        return;
+    }
+    *last = Some(discovery.clone());
+    emit(tx, Event::Detected(discovery));
+}
+
 fn read_all(
     link: &mut dyn KeyboardLink,
     tx: &async_channel::Sender<Event>,
@@ -124,18 +133,42 @@ fn read_all(
     ok
 }
 
+fn announce_link(
+    link: &mut dyn KeyboardLink,
+    tx: &async_channel::Sender<Event>,
+    last_error: &mut String,
+) {
+    let info = link.info();
+    log::info!("connected to {} ({})", info.product_name, info.hidraw);
+    emit(
+        tx,
+        Event::Connected {
+            transport: info.transport,
+        },
+    );
+    emit(tx, Event::Busy(true, "正在读取设备…".to_string()));
+    if read_all(link, tx, last_error) {
+        emit(tx, Event::Healthy);
+    }
+    emit(tx, Event::Busy(false, String::new()));
+    *last_error = String::new();
+}
+
 fn try_connect(
     model: &Model,
     simulate: bool,
     tx: &async_channel::Sender<Event>,
     last_error: &mut String,
+    last_discovery: &mut Option<Discovery>,
 ) -> Option<Box<dyn KeyboardLink>> {
     log::info!("try_connect simulate={simulate}");
     let mut link: Box<dyn KeyboardLink> = if simulate {
         Box::new(MockLink::new(model))
     } else {
-        match RealLink::open(model) {
-            Ok(link) => Box::new(link),
+        let discovery = discover(model);
+        publish_discovery(tx, last_discovery, discovery.clone());
+        match open_detected(&discovery, model) {
+            Ok(link) => link,
             Err(DeviceError::NotFound) => return None,
             Err(e) => {
                 emit_error(tx, last_error, e.to_string());
@@ -143,22 +176,7 @@ fn try_connect(
             }
         }
     };
-    let info = link.info().clone();
-    log::info!("connected to {}", info.product_name);
-    emit(
-        tx,
-        Event::Connected {
-            port: info.hidraw.clone(),
-            product_name: info.product_name.clone(),
-            simulated: simulate,
-        },
-    );
-    emit(tx, Event::Busy(true, "正在读取设备…".to_string()));
-    if read_all(link.as_mut(), tx, last_error) {
-        emit(tx, Event::Healthy);
-    }
-    emit(tx, Event::Busy(false, String::new()));
-    *last_error = String::new();
+    announce_link(link.as_mut(), tx, last_error);
     Some(link)
 }
 
@@ -278,17 +296,50 @@ fn worker(
 ) {
     let mut link: Option<Box<dyn KeyboardLink>> = None;
     let mut last_error = String::new();
+    let mut last_discovery = None;
     let mut last_scan = Instant::now() - Duration::from_secs(1);
+    let mut last_presence_scan = Instant::now();
     let mut announced_empty = false;
     loop {
         if link.is_none() && last_scan.elapsed() >= Duration::from_millis(900) {
             last_scan = Instant::now();
-            if let Some(new_link) = try_connect(&model, simulate, &events, &mut last_error) {
+            if let Some(new_link) = try_connect(
+                &model,
+                simulate,
+                &events,
+                &mut last_error,
+                &mut last_discovery,
+            ) {
                 link = Some(new_link);
                 announced_empty = false;
             } else if !announced_empty && last_error.is_empty() {
                 emit(&events, Event::Disconnected);
                 announced_empty = true;
+            }
+        }
+
+        if link.is_some() && !simulate && last_presence_scan.elapsed() >= Duration::from_secs(2) {
+            last_presence_scan = Instant::now();
+            let discovery = discover(&model);
+            publish_discovery(&events, &mut last_discovery, discovery.clone());
+            if discovery.wired.info().is_some()
+                && link
+                    .as_ref()
+                    .is_some_and(|current| current.info().transport == Transport::Wireless)
+            {
+                if let Some(info) = discovery.wired.info() {
+                    match WiredLink::open_info(info.clone(), model.report.wired_id) {
+                        Ok(new_link) => {
+                            let mut new_link: Box<dyn KeyboardLink> = Box::new(new_link);
+                            announce_link(new_link.as_mut(), &events, &mut last_error);
+                            link = Some(new_link);
+                            announced_empty = false;
+                        }
+                        Err(e) => {
+                            log::warn!("wired interface detected but cannot open: {e}");
+                        }
+                    }
+                }
             }
         }
 
@@ -307,15 +358,20 @@ fn worker(
                 }
                 last_error.clear();
                 if link.is_none() {
-                    if let Some(new_link) = try_connect(&model, simulate, &events, &mut last_error)
-                    {
+                    if let Some(new_link) = try_connect(
+                        &model,
+                        simulate,
+                        &events,
+                        &mut last_error,
+                        &mut last_discovery,
+                    ) {
                         link = Some(new_link);
                     }
                 }
                 let Some(current) = link.as_mut() else {
                     emit(
                         &events,
-                        Event::Error("设备未连接，请插入 2.4G 接收器".to_string()),
+                        Event::Error("设备未连接，请连接 USB 线或插入 2.4G 接收器".to_string()),
                     );
                     continue;
                 };

@@ -9,7 +9,7 @@
   <description>
     <p>
       An unofficial native GNOME application for configuring the MCHOSE K99 V2
-      keyboard through its 2.4G receiver on Linux.
+      keyboard over USB or its 2.4G receiver on Linux.
     </p>
     <p>Features:</p>
     <ul>
@@ -36,7 +36,7 @@
   <releases>
     <release version="0.1.0" date="2026-10-25">
       <description>
-        <p>Initial release with MCHOSE K99 V2 2.4G support.</p>
+        <p>Initial release with MCHOSE K99 V2 USB and 2.4G support.</p>
       </description>
     </release>
   </releases>

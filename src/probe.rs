@@ -1,6 +1,6 @@
 use gtk::glib;
 
-use crate::device::link::{KeyboardLink, RealLink};
+use crate::device::link::{discover, open_detected, Presence};
 use crate::model::Model;
 
 pub fn run(write: bool) -> glib::ExitCode {
@@ -13,11 +13,23 @@ pub fn run(write: bool) -> glib::ExitCode {
     }
 }
 
+fn describe(presence: &Presence) -> String {
+    match presence {
+        Presence::Available(info) => format!("{} ({})", info.product_name, info.hidraw),
+        Presence::Denied(path) => format!("no permission ({})", path.display()),
+        Presence::Absent => "absent".to_string(),
+    }
+}
+
 fn run_inner(write: bool) -> Result<(), Box<dyn std::error::Error>> {
     let model = Model::load();
-    let mut link = RealLink::open(&model)?;
+    let discovery = discover(&model);
+    println!("detected wired: {}", describe(&discovery.wired));
+    println!("detected wireless: {}", describe(&discovery.wireless));
+    let mut link = open_detected(&discovery, &model)?;
     let info = link.info().clone();
     println!("device: {} ({})", info.product_name, info.hidraw);
+    println!("transport: {}", info.transport.label());
     println!("id: {:04x}:{:04x}", info.vendor_id, info.product_id);
 
     let battery = link.read_battery()?;

@@ -7,7 +7,7 @@ use std::time::Duration;
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 
-use crate::device::{DeviceService, Event, Request};
+use crate::device::{DeviceService, Discovery, Event, Presence, Request, Transport};
 use crate::model::Model;
 use crate::protocol::{Battery, KeyLayer, LightState, Performance};
 
@@ -24,9 +24,8 @@ const UDEV_RULE: &str =
 struct UiState {
     connected: bool,
     searching: bool,
-    simulated: bool,
-    port: String,
-    product: String,
+    transport: Option<Transport>,
+    discovery: Option<Discovery>,
     battery: Option<Battery>,
     performance: Option<Performance>,
     light: Option<LightState>,
@@ -280,22 +279,21 @@ impl AppUi {
 
     fn handle_event(self: &Rc<Self>, event: Event) {
         match event {
-            Event::Connected {
-                port,
-                product_name,
-                simulated,
-            } => {
+            Event::Connected { transport } => {
                 let mut state = self.state.borrow_mut();
                 state.connected = true;
                 state.searching = false;
-                state.simulated = simulated;
-                state.port = port;
-                state.product = product_name;
+                state.transport = Some(transport);
+                state.keys = [None, None, None];
+                state.selected = None;
                 state.error = None;
                 drop(state);
                 if self.stack.visible_child_name().is_some_and(|n| n == "keys") {
                     self.ensure_keys();
                 }
+            }
+            Event::Detected(discovery) => {
+                self.state.borrow_mut().discovery = Some(discovery);
             }
             Event::Disconnected => {
                 let mut state = self.state.borrow_mut();
@@ -392,7 +390,7 @@ impl AppUi {
             self.banner.set_revealed(true);
         } else if !connected && !searching {
             self.banner
-                .set_title("设备已断开，请检查 2.4G 接收器是否插好");
+                .set_title("设备已断开，请检查 USB 线或 2.4G 接收器");
             self.banner.set_revealed(true);
         } else {
             self.banner.set_revealed(false);
@@ -607,6 +605,14 @@ fn confirm(
     dialog.present(Some(&ui.window));
 }
 
+fn presence_text(presence: &Presence) -> String {
+    match presence {
+        Presence::Available(info) => format!("已检测到 · {}", info.hidraw),
+        Presence::Denied(_) => "已检测到，但无访问权限".to_string(),
+        Presence::Absent => "未检测到".to_string(),
+    }
+}
+
 struct DevicePage {
     root: gtk::ScrolledWindow,
     stack: gtk::Stack,
@@ -615,7 +621,8 @@ struct DevicePage {
     empty_body: gtk::Label,
     model_value: gtk::Label,
     connection_value: gtk::Label,
-    receiver_value: gtk::Label,
+    wired_value: gtk::Label,
+    wireless_value: gtk::Label,
     battery_bar: gtk::ProgressBar,
     rate_value: gtk::Label,
     effect_value: gtk::Label,
@@ -633,7 +640,8 @@ impl DevicePage {
         let info = section(&details, "设备信息");
         let model_value = value_row(&info, "型号");
         let connection_value = value_row(&info, "连接");
-        let receiver_value = value_row(&info, "接收器");
+        let wired_value = value_row(&info, "USB 有线");
+        let wireless_value = value_row(&info, "2.4G 接收器");
         let battery_row = adw::ActionRow::builder().title("电量").build();
         let battery_bar = gtk::ProgressBar::new();
         battery_bar.set_show_text(true);
@@ -679,7 +687,7 @@ impl DevicePage {
         empty_title.add_css_class("title-1");
         empty.append(&empty_title);
         let empty_body = gtk::Label::new(Some(
-            "请把 K99 V2 的 2.4G 接收器插入 USB 口，并按任意键唤醒键盘。",
+            "请用 USB 线连接 K99 V2，或插入 2.4G 接收器，并按任意键唤醒键盘。",
         ));
         empty_body.add_css_class("dim-label");
         empty_body.set_wrap(true);
@@ -707,7 +715,8 @@ impl DevicePage {
             empty_body,
             model_value,
             connection_value,
-            receiver_value,
+            wired_value,
+            wireless_value,
             battery_bar,
             rate_value,
             effect_value,
@@ -735,22 +744,27 @@ impl DevicePage {
                 self.empty_body.set_text(error);
             } else {
                 self.empty_body
-                    .set_text("请把 K99 V2 的 2.4G 接收器插入 USB 口，并按任意键唤醒键盘。");
+                    .set_text("请用 USB 线连接 K99 V2，或插入 2.4G 接收器，并按任意键唤醒键盘。");
             }
         }
 
         self.model_value.set_text(&ui.model.name);
-        let connection = if state.simulated {
-            "模拟设备".to_string()
-        } else {
-            "2.4G 无线接收器".to_string()
-        };
+        let connection = state
+            .transport
+            .map(Transport::label)
+            .unwrap_or("—")
+            .to_string();
         self.connection_value.set_text(&connection);
-        if state.port.is_empty() {
-            self.receiver_value.set_text("—");
-        } else {
-            self.receiver_value
-                .set_text(&format!("{} · {}", state.product, state.port));
+        match &state.discovery {
+            Some(discovery) => {
+                self.wired_value.set_text(&presence_text(&discovery.wired));
+                self.wireless_value
+                    .set_text(&presence_text(&discovery.wireless));
+            }
+            None => {
+                self.wired_value.set_text("—");
+                self.wireless_value.set_text("—");
+            }
         }
 
         let battery = state.battery;
@@ -1525,10 +1539,10 @@ impl SettingsPage {
 
         let support = section(&content, "支持范围");
         let model_value = value_row(&support, "型号");
-        model_value.set_text(&format!("{}（2.4G 接收器）", model.name));
+        model_value.set_text(&format!("{}（USB 有线 / 2.4G 无线）", model.name));
         let detail = adw::ActionRow::builder()
             .title("当前版本支持")
-            .subtitle("K99 V2 的 2.4G 设置项；有线模式尚未实现，固件刷写、云端配置和音频驱动不在支持范围内。")
+            .subtitle("K99 V2 的设置项；固件刷写、云端配置和音频驱动不在支持范围内。")
             .build();
         detail.set_subtitle_lines(3);
         support.add(&detail);
@@ -1539,7 +1553,7 @@ impl SettingsPage {
         let permissions = section(&content, "HID 权限");
         let explain = adw::ActionRow::builder()
             .title("权限不足时")
-            .subtitle("读取设备提示无权限时，请安装以下 udev 规则并重新插拔接收器。")
+            .subtitle("读取设备提示无权限时，请安装以下 udev 规则并重新插拔键盘。")
             .build();
         explain.set_subtitle_lines(2);
         permissions.add(&explain);
@@ -1598,7 +1612,11 @@ impl SettingsPage {
     fn update(&self, ui: &AppUi) {
         let state = ui.state.borrow();
         self.simulate_value
-            .set_text(if state.simulated { "是" } else { "否" });
+            .set_text(if state.transport == Some(Transport::Simulated) {
+                "是"
+            } else {
+                "否"
+            });
     }
 }
 

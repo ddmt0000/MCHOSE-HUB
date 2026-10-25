@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use crate::model::Model;
 use crate::protocol::{Battery, KeyLayer, LightState, Performance};
 
-use super::hidraw::{DeviceError, DeviceInfo};
+use super::hidraw::{DeviceError, DeviceInfo, Transport};
 use super::link::KeyboardLink;
 
 pub struct MockLink {
@@ -23,6 +23,7 @@ impl MockLink {
                 product_name: "K99 V2（模拟）".to_string(),
                 hidraw: "mock0".to_string(),
                 path: PathBuf::from("/dev/null"),
+                transport: Transport::Simulated,
             },
             performance: Performance::from_model_default(model),
             keys: [

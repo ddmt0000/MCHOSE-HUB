@@ -19,6 +19,21 @@ pub const CMD_SET_KEYS: u8 = 0x01;
 pub const CMD_SET_PERFORMANCE: u8 = 0x04;
 pub const CMD_SET_LIGHT: u8 = 0x09;
 
+pub const WIRED_REPORT_LEN: usize = 519;
+pub const WIRED_BUFFER_LEN: usize = WIRED_REPORT_LEN + 1;
+pub const WIRED_HEADER_LEN: usize = 7;
+pub const WIRED_KEYS_READ_LEN: usize = 504;
+pub const WIRED_CMD_GET_KEYS: u8 = 0x83;
+pub const WIRED_CMD_GET_PERFORMANCE: u8 = 0x84;
+pub const WIRED_CMD_GET_BATTERY: u8 = 0x87;
+pub const WIRED_CMD_GET_LIGHT: u8 = 0x8a;
+pub const WIRED_CMD_SET_KEYS: u8 = 0x03;
+pub const WIRED_CMD_SET_PERFORMANCE: u8 = 0x04;
+pub const WIRED_CMD_SET_LIGHT: u8 = 0x10;
+pub const WIRED_SPACE_PERFORMANCE: [u8; 6] = [0, 0, 1, 0, 0x80, 0];
+pub const WIRED_SPACE_LIGHT: [u8; 6] = [0, 0, 1, 0, 0x00, 0x02];
+pub const WIRED_SPACE_BATTERY: [u8; 6] = [0, 0, 1, 0, 0x02, 0];
+
 #[derive(Debug, Error)]
 pub enum ProtocolError {
     #[error("报文长度不足：期望 {expected}，实际 {actual}")]
@@ -27,6 +42,8 @@ pub enum ProtocolError {
     BadChecksum,
     #[error("数据长度不对：{0}")]
     BadLength(usize),
+    #[error("设备响应命令不匹配：期望 {expected:#04x}，实际 {actual:#04x}")]
+    UnexpectedCommand { expected: u8, actual: u8 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -429,6 +446,71 @@ pub fn color_offset(mode: u8) -> Option<usize> {
     })
 }
 
+pub fn wired_keys_space(layer: u8) -> [u8; 6] {
+    [layer, 0, 1, 0, 0xf8, 0x01]
+}
+
+pub fn wired_request(command: u8, space0: [u8; 6]) -> [u8; WIRED_REPORT_LEN] {
+    let mut request = [0u8; WIRED_REPORT_LEN];
+    request[0] = command;
+    request[1..WIRED_HEADER_LEN].copy_from_slice(&space0);
+    request
+}
+
+pub fn wired_performance_request() -> [u8; WIRED_REPORT_LEN] {
+    wired_request(WIRED_CMD_GET_PERFORMANCE, WIRED_SPACE_PERFORMANCE)
+}
+
+pub fn wired_keys_request(layer: u8) -> [u8; WIRED_REPORT_LEN] {
+    wired_request(WIRED_CMD_GET_KEYS, wired_keys_space(layer))
+}
+
+pub fn wired_light_request() -> [u8; WIRED_REPORT_LEN] {
+    wired_request(WIRED_CMD_GET_LIGHT, WIRED_SPACE_LIGHT)
+}
+
+pub fn wired_battery_request() -> [u8; WIRED_REPORT_LEN] {
+    wired_request(WIRED_CMD_GET_BATTERY, WIRED_SPACE_BATTERY)
+}
+
+pub fn wired_performance_write(performance: &Performance) -> [u8; WIRED_REPORT_LEN] {
+    let mut request = wired_request(WIRED_CMD_SET_PERFORMANCE, WIRED_SPACE_PERFORMANCE);
+    request[WIRED_HEADER_LEN..WIRED_HEADER_LEN + PERF_LEN].copy_from_slice(performance.raw());
+    request
+}
+
+pub fn wired_keys_write(layer: u8, keys: &KeyLayer) -> [u8; WIRED_REPORT_LEN] {
+    let mut request = wired_request(WIRED_CMD_SET_KEYS, wired_keys_space(layer));
+    let bytes = keys.to_write_bytes();
+    request[WIRED_HEADER_LEN..WIRED_HEADER_LEN + bytes.len()].copy_from_slice(&bytes);
+    request
+}
+
+pub fn wired_light_write(light: &LightState) -> [u8; WIRED_REPORT_LEN] {
+    let mut request = wired_request(WIRED_CMD_SET_LIGHT, WIRED_SPACE_LIGHT);
+    request[WIRED_HEADER_LEN..WIRED_HEADER_LEN + LIGHT_LEN].copy_from_slice(light.raw());
+    let marker = WIRED_HEADER_LEN + LIGHT_LEN + 16;
+    request[marker] = 0x5a;
+    request[marker + 1] = 0xa5;
+    request
+}
+
+pub fn wired_response(buffer: &[u8], command: u8) -> Result<&[u8], ProtocolError> {
+    if buffer.len() < WIRED_HEADER_LEN {
+        return Err(ProtocolError::ShortPacket {
+            expected: WIRED_HEADER_LEN,
+            actual: buffer.len(),
+        });
+    }
+    if buffer[0] != command {
+        return Err(ProtocolError::UnexpectedCommand {
+            expected: command,
+            actual: buffer[0],
+        });
+    }
+    Ok(&buffer[WIRED_HEADER_LEN..])
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Battery {
     pub level: u8,
@@ -571,6 +653,73 @@ mod tests {
         assert!(matches!(
             Packet::decode(&payload),
             Err(ProtocolError::BadChecksum)
+        ));
+    }
+
+    #[test]
+    fn wired_read_requests_have_expected_header() {
+        let perf = wired_performance_request();
+        assert_eq!(perf.len(), WIRED_REPORT_LEN);
+        assert_eq!(&perf[..7], &[0x84, 0, 0, 1, 0, 0x80, 0]);
+
+        let keys = wired_keys_request(1);
+        assert_eq!(&keys[..7], &[0x83, 1, 0, 1, 0, 0xf8, 0x01]);
+
+        let light = wired_light_request();
+        assert_eq!(&light[..7], &[0x8a, 0, 0, 1, 0, 0x00, 0x02]);
+
+        let battery = wired_battery_request();
+        assert_eq!(&battery[..7], &[0x87, 0, 0, 1, 0, 0x02, 0]);
+    }
+
+    #[test]
+    fn wired_writes_match_hub_layout() {
+        let model = Model::load();
+
+        let performance = Performance::from_model_default(&model);
+        let request = wired_performance_write(&performance);
+        assert_eq!(request.len(), WIRED_REPORT_LEN);
+        assert_eq!(&request[..7], &[0x04, 0, 0, 1, 0, 0x80, 0]);
+        assert_eq!(&request[7..7 + PERF_LEN], performance.raw());
+        assert!(request[7 + PERF_LEN..].iter().all(|b| *b == 0));
+
+        let layer = KeyLayer::from_defaults(&model, 1);
+        let request = wired_keys_write(1, &layer);
+        assert_eq!(request.len(), WIRED_REPORT_LEN);
+        assert_eq!(&request[..7], &[0x03, 1, 0, 1, 0, 0xf8, 0x01]);
+        let bytes = layer.to_write_bytes();
+        assert_eq!(&request[7..7 + 452], &bytes[..452]);
+        assert_eq!(&request[WIRED_REPORT_LEN - 2..], &[0x5a, 0xa5]);
+        assert!(request[7 + 452..WIRED_REPORT_LEN - 2]
+            .iter()
+            .all(|b| *b == 0));
+
+        let light = LightState::from_model_default(&model);
+        let request = wired_light_write(&light);
+        assert_eq!(request.len(), WIRED_REPORT_LEN);
+        assert_eq!(&request[..7], &[0x10, 0, 0, 1, 0, 0x00, 0x02]);
+        assert_eq!(&request[7..7 + LIGHT_LEN], light.raw());
+        assert_eq!(&request[513..515], &[0x5a, 0xa5]);
+        assert!(request[497..513].iter().all(|b| *b == 0));
+        assert!(request[515..].iter().all(|b| *b == 0));
+    }
+
+    #[test]
+    fn wired_response_checks_command() {
+        let mut buffer = vec![0u8; WIRED_REPORT_LEN];
+        buffer[0] = WIRED_CMD_GET_BATTERY;
+        buffer[1..7].copy_from_slice(&WIRED_SPACE_BATTERY);
+        buffer[7] = 64;
+        buffer[8] = 0x10;
+        let data = wired_response(&buffer, WIRED_CMD_GET_BATTERY).unwrap();
+        assert_eq!(&data[..2], &[64, 0x10]);
+        assert!(matches!(
+            wired_response(&buffer, WIRED_CMD_GET_PERFORMANCE),
+            Err(ProtocolError::UnexpectedCommand { .. })
+        ));
+        assert!(matches!(
+            wired_response(&buffer[..6], WIRED_CMD_GET_BATTERY),
+            Err(ProtocolError::ShortPacket { .. })
         ));
     }
 }
