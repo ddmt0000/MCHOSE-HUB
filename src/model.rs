@@ -123,6 +123,22 @@ impl Model {
         self.keys.iter().find(|k| k.matrix == matrix)
     }
 
+    /// Detect the software Mac layout (Left_Win/Left_Alt swapped) for the
+    /// default layer. Returns None when the keys were customised.
+    pub fn mac_layout_state(&self, keys: &[[u8; 4]]) -> Option<bool> {
+        let win = self.key_for_matrix(11)?.default;
+        let alt = self.key_for_matrix(17)?.default;
+        let current_win = *keys.get(11)?;
+        let current_alt = *keys.get(17)?;
+        if current_win == win && current_alt == alt {
+            Some(false)
+        } else if current_win == alt && current_alt == win {
+            Some(true)
+        } else {
+            None
+        }
+    }
+
     pub fn effect(&self, mode: u8) -> Option<&Effect> {
         self.effects.iter().find(|e| e.mode == mode)
     }
@@ -191,6 +207,17 @@ mod tests {
         assert_eq!(esc.label_parts(), ("Esc", ""));
         let one = model.keys.iter().find(|k| k.name == "one").unwrap();
         assert_eq!(one.label_parts(), ("1", "!"));
+    }
+
+    #[test]
+    fn mac_layout_detection() {
+        let model = Model::load();
+        let mut keys = model.default_layer(0);
+        assert_eq!(model.mac_layout_state(&keys), Some(false));
+        keys.swap(11, 17);
+        assert_eq!(model.mac_layout_state(&keys), Some(true));
+        keys[11] = [9, 9, 9, 9];
+        assert_eq!(model.mac_layout_state(&keys), None);
     }
 
     #[test]

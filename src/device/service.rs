@@ -24,6 +24,7 @@ pub enum Event {
     Light(LightState),
     Keys(u8, KeyLayer),
     Saved(&'static str),
+    Healthy,
     Error(String),
     Busy(bool, String),
 }
@@ -117,6 +118,9 @@ fn read_all(
             ok = false;
         }
     }
+    if ok {
+        *last_error = String::new();
+    }
     ok
 }
 
@@ -150,7 +154,9 @@ fn try_connect(
         },
     );
     emit(tx, Event::Busy(true, "正在读取设备…".to_string()));
-    read_all(link.as_mut(), tx, last_error);
+    if read_all(link.as_mut(), tx, last_error) {
+        emit(tx, Event::Healthy);
+    }
     emit(tx, Event::Busy(false, String::new()));
     *last_error = String::new();
     Some(link)
@@ -167,8 +173,11 @@ fn handle_request(
         Request::Shutdown => return false,
         Request::Refresh => {
             emit(tx, Event::Busy(true, "正在刷新…".to_string()));
-            read_all(link.as_mut(), tx, last_error);
+            let ok = read_all(link.as_mut(), tx, last_error);
             emit(tx, Event::Busy(false, String::new()));
+            if ok {
+                emit(tx, Event::Healthy);
+            }
             Ok(())
         }
         Request::LoadKeys => {
@@ -257,6 +266,7 @@ fn handle_request(
         emit_error(tx, last_error, format!("操作失败：{e}"));
         return link.is_present();
     }
+    *last_error = String::new();
     true
 }
 
@@ -295,6 +305,7 @@ fn worker(
                 if matches!(request, Request::Shutdown) {
                     break;
                 }
+                last_error.clear();
                 if link.is_none() {
                     if let Some(new_link) = try_connect(&model, simulate, &events, &mut last_error)
                     {

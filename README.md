@@ -6,14 +6,14 @@ MCHOSE K99 V2 的 Linux 原生驱动设置程序。使用 Rust + GTK4 + libadwai
 
 **状态：v0.1.0，K99 V2 2.4G 接收器已在真机验证（2026-10-25）。**
 
-![设备页](docs/screenshots/device.png)
+![设备页（模拟设备）](docs/screenshots/device.png)
 
 ## 功能
 
 - **设备信息**：型号、连接方式、接收器、电量、回报率、当前灯效、休眠、Win 锁、Mac 模式。
 - **按键**：原生绘制 K99 V2 99 键布局（按功能布局重绘，导航键/方向键的物理位置以实际键盘为准），支持默认层 / Fn 层 / Fn2 层；可改键为键盘键、修饰键、鼠标键、媒体键、快捷功能和禁用。
 - **灯效**：常亮、呼吸、梦幻彩虹、一触即发、雨中漫步、涟漪扩散、繁星流彩、随波逐流、潮汐共振、光影、正弦波、风车、瀑布、繁花、自定义、关闭；可调颜色、亮度、速度、多彩。
-- **性能**：250/500/1000 Hz 回报率、低延迟模式、休眠时间、Win 键锁、Mac 模式。
+- **性能**：250/500/1000 Hz 回报率、低延迟模式、休眠时间、Win 键锁、Mac 布局（软件交换 Alt/Win）。
 - **恢复默认**：按键分层恢复、性能恢复、灯效颜色恢复。
 - **模拟设备**：无键盘时可完整演示和测试 UI：`--simulate`。
 - **诊断工具**：`--probe` 只读导出，`--probe-write` 原样写回并校验。
@@ -21,6 +21,12 @@ MCHOSE K99 V2 的 Linux 原生驱动设置程序。使用 Rust + GTK4 + libadwai
 | 按键 | 灯效 |
 |---|---|
 | ![按键页](docs/screenshots/keys.png) | ![灯效页](docs/screenshots/lighting.png) |
+
+| 性能 | 设置 |
+|---|---|
+| ![性能页](docs/screenshots/performance.png) | ![设置页](docs/screenshots/settings.png) |
+
+*截图为模拟设备与暗色主题。*
 
 ## 支持范围与限制
 
@@ -35,6 +41,7 @@ MCHOSE K99 V2 的 Linux 原生驱动设置程序。使用 Rust + GTK4 + libadwai
 - 有线模式（接收器协议已验证；有线接口未实现）。
 - 固件刷写 / OTA。
 - 宏编辑、云端配置、音乐律动、Windows 音频驱动、THX 等功能。
+- Mac 布局只交换默认层的 Alt/Win（软件实现），不会改变 F1-F12；完整固件 Mac 模式请按键盘的 **Fn + S / Fn + A** 切换。
 - 自定义灯效（模式 21）的逐键颜色编辑；该模式会保留键盘中原有的自定义灯效。
 
 键盘休眠后厂商通道会停止响应。**按键盘任意键唤醒，再点击右上角刷新按钮。**
@@ -178,6 +185,7 @@ docs/protocol.md      协议说明
 
 - 协议与型号数据来自对公开 HUB 网页客户端的静态分析，仅用于互操作与 Linux 兼容；仓库不包含官方代码、二进制或图片。
 - 键位、HID 码、默认键值等为设备事实数据；UI、Rust 实现与协议文档为本项目原创。
+- 界面符号图标来自 GNOME Adwaita 图标主题（CC-BY-SA-3.0/4.0 或 LGPL-3.0，署名 GNOME Project），已内置到应用资源，命名参考 GNOME Icon Library 的 dev-kit；详见 `data/icons/mchose/README.md`。
 - 许可证：GNU GPL-3.0-or-later（见 `COPYING`）。
 
 ## 路线图

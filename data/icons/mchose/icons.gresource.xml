@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/top/ddmt/mchosehub/icons/16x16/actions/">
+    <file alias="mchose-check-symbolic.svg">mchose-check-symbolic.svg</file>
+    <file alias="mchose-copy-symbolic.svg">mchose-copy-symbolic.svg</file>
+    <file alias="mchose-device-symbolic.svg">mchose-device-symbolic.svg</file>
+    <file alias="mchose-keys-symbolic.svg">mchose-keys-symbolic.svg</file>
+    <file alias="mchose-light-off-symbolic.svg">mchose-light-off-symbolic.svg</file>
+    <file alias="mchose-light-symbolic.svg">mchose-light-symbolic.svg</file>
+    <file alias="mchose-menu-symbolic.svg">mchose-menu-symbolic.svg</file>
+    <file alias="mchose-performance-symbolic.svg">mchose-performance-symbolic.svg</file>
+    <file alias="mchose-refresh-symbolic.svg">mchose-refresh-symbolic.svg</file>
+    <file alias="mchose-settings-symbolic.svg">mchose-settings-symbolic.svg</file>
+  </gresource>
+  <gresource prefix="/top/ddmt/mchosehub/icons/scalable/actions/">
+    <file alias="mchose-check-symbolic.svg">mchose-check-symbolic.svg</file>
+    <file alias="mchose-copy-symbolic.svg">mchose-copy-symbolic.svg</file>
+    <file alias="mchose-device-symbolic.svg">mchose-device-symbolic.svg</file>
+    <file alias="mchose-keys-symbolic.svg">mchose-keys-symbolic.svg</file>
+    <file alias="mchose-light-off-symbolic.svg">mchose-light-off-symbolic.svg</file>
+    <file alias="mchose-light-symbolic.svg">mchose-light-symbolic.svg</file>
+    <file alias="mchose-menu-symbolic.svg">mchose-menu-symbolic.svg</file>
+    <file alias="mchose-performance-symbolic.svg">mchose-performance-symbolic.svg</file>
+    <file alias="mchose-refresh-symbolic.svg">mchose-refresh-symbolic.svg</file>
+    <file alias="mchose-settings-symbolic.svg">mchose-settings-symbolic.svg</file>
+  </gresource>
+  <gresource prefix="/top/ddmt/mchosehub/icons/scalable/apps/">
+    <file alias="top.ddmt.mchosehub.svg">top.ddmt.mchosehub.svg</file>
+  </gresource>
+</gresources>

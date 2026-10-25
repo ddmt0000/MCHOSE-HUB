@@ -296,10 +296,6 @@ impl Performance {
         self.raw[27] == 1
     }
 
-    pub fn set_mac_mode(&mut self, on: bool) {
-        self.raw[27] = u8::from(on);
-    }
-
     pub fn light_type(&self) -> u8 {
         self.raw[9]
     }

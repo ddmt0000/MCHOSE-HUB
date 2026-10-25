@@ -31,6 +31,7 @@ struct UiState {
     performance: Option<Performance>,
     light: Option<LightState>,
     keys: [Option<KeyLayer>; 3],
+    mac_layout: bool,
     layer: u8,
     selected: Option<usize>,
     loading: bool,
@@ -73,6 +74,10 @@ pub fn build_window(
     simulate: bool,
 ) -> adw::ApplicationWindow {
     load_css();
+    if let Some(display) = gdk::Display::default() {
+        let theme = gtk::IconTheme::for_display(&display);
+        theme.add_resource_path("/top/ddmt/mchosehub/icons");
+    }
     let service = DeviceService::start(model.clone(), simulate);
     let window = adw::ApplicationWindow::builder()
         .application(app)
@@ -96,31 +101,31 @@ pub fn build_window(
             &device_page.root,
             Some("device"),
             "设备",
-            "input-keyboard-symbolic",
+            "mchose-device-symbolic",
         );
         stack.add_titled_with_icon(
             &keys_page.root,
             Some("keys"),
             "按键",
-            "preferences-desktop-keyboard-symbolic",
+            "mchose-keys-symbolic",
         );
         stack.add_titled_with_icon(
             &lighting_page.root,
             Some("lighting"),
             "灯效",
-            "display-brightness-symbolic",
+            "mchose-light-symbolic",
         );
         stack.add_titled_with_icon(
             &performance_page.root,
             Some("performance"),
             "性能",
-            "power-profile-performance-symbolic",
+            "mchose-performance-symbolic",
         );
         stack.add_titled_with_icon(
             &settings_page.root,
             Some("settings"),
             "设置",
-            "emblem-system-symbolic",
+            "mchose-settings-symbolic",
         );
 
         let header = adw::HeaderBar::new();
@@ -140,7 +145,7 @@ pub fn build_window(
         busy_box.set_visible(false);
         header.pack_start(&busy_box);
 
-        let refresh = gtk::Button::from_icon_name("view-refresh-symbolic");
+        let refresh = gtk::Button::from_icon_name("mchose-refresh-symbolic");
         refresh.set_tooltip_text(Some("刷新设备数据"));
         {
             let weak = weak.clone();
@@ -160,7 +165,7 @@ pub fn build_window(
         menu.append(Some("关于 MCHOSE HUB"), Some("app.about"));
         menu.append(Some("退出"), Some("app.quit"));
         let menu_button = gtk::MenuButton::builder()
-            .icon_name("open-menu-symbolic")
+            .icon_name("mchose-menu-symbolic")
             .menu_model(&menu)
             .build();
         header.pack_end(&menu_button);
@@ -172,6 +177,8 @@ pub fn build_window(
             let weak = weak.clone();
             banner.connect_button_clicked(move |_| {
                 if let Some(ui) = weak.upgrade() {
+                    ui.state.borrow_mut().error = None;
+                    ui.update_header();
                     ui.send(Request::Refresh);
                 }
             });
@@ -193,7 +200,10 @@ pub fn build_window(
             let weak = weak.clone();
             stack.connect_notify_local(Some("visible-child-name"), move |stack, _| {
                 if let Some(ui) = weak.upgrade() {
-                    if stack.visible_child_name().is_some_and(|n| n == "keys") {
+                    if stack
+                        .visible_child_name()
+                        .is_some_and(|n| n == "keys" || n == "performance")
+                    {
                         ui.ensure_keys();
                     }
                 }
@@ -308,11 +318,23 @@ impl AppUi {
                 self.state.borrow_mut().light = Some(light);
             }
             Event::Keys(layer, keys) => {
+                let inferred = if layer == 0 {
+                    self.model.mac_layout_state(&keys.keys)
+                } else {
+                    None
+                };
                 if let Some(slot) = self.state.borrow_mut().keys.get_mut(layer as usize) {
                     *slot = Some(keys);
                 }
+                if let Some(mac_layout) = inferred {
+                    self.state.borrow_mut().mac_layout = mac_layout;
+                }
+            }
+            Event::Healthy => {
+                self.state.borrow_mut().error = None;
             }
             Event::Saved(message) => {
+                self.state.borrow_mut().error = None;
                 self.toast(message);
             }
             Event::Error(message) => {
@@ -379,7 +401,7 @@ impl AppUi {
 
     fn ensure_keys(&self) {
         let state = self.state.borrow();
-        if state.connected && state.keys.iter().all(Option::is_none) {
+        if state.connected && state.keys[0].is_none() {
             drop(state);
             self.send(Request::LoadKeys);
         }
@@ -447,6 +469,25 @@ impl AppUi {
             .unwrap_or([0, 0, 0, 0]);
         keys.keys[matrix] = value;
         self.send(Request::SetKeys(layer, keys));
+    }
+
+    fn set_mac_layout(self: &Rc<Self>, active: bool) {
+        let Some(mut layer) = self.state.borrow().keys[0].clone() else {
+            self.send(Request::LoadKeys);
+            self.toast("正在读取按键…");
+            return;
+        };
+        if layer.keys.len() <= 17 {
+            return;
+        }
+        layer.keys.swap(11, 17);
+        log::info!(
+            "mac layout active={active} win11={:?} alt17={:?}",
+            layer.keys[11],
+            layer.keys[17]
+        );
+        self.state.borrow_mut().mac_layout = active;
+        self.send(Request::SetKeys(0, layer));
     }
 
     fn open_action_picker(self: &Rc<Self>, matrix: usize) {
@@ -523,6 +564,17 @@ fn section(content: &gtk::Box, title: &str) -> adw::PreferencesGroup {
     group
 }
 
+fn pill_button(label: &str) -> gtk::Button {
+    let button = gtk::Button::with_label(label);
+    button.set_halign(gtk::Align::Start);
+    button.add_css_class("pill");
+    button.set_margin_top(8);
+    button.set_margin_bottom(8);
+    button.set_margin_start(6);
+    button.set_margin_end(6);
+    button
+}
+
 fn value_row(group: &adw::PreferencesGroup, title: &str) -> gtk::Label {
     let row = adw::ActionRow::builder().title(title).build();
     let value = gtk::Label::new(Some("—"));
@@ -594,7 +646,7 @@ impl DevicePage {
         let effect_value = value_row(&current, "灯效");
         let sleep_value = value_row(&current, "休眠");
         let win_value = value_row(&current, "Win 键锁");
-        let mac_value = value_row(&current, "Mac 模式");
+        let mac_value = value_row(&current, "Mac 布局");
 
         let status = section(&details, "设备状态");
         let note = adw::ActionRow::builder()
@@ -602,9 +654,7 @@ impl DevicePage {
             .subtitle("键盘休眠时厂商通道不会响应，按任意键唤醒后点击刷新。")
             .build();
         status.add(&note);
-        let rescan = gtk::Button::with_label("刷新设备数据");
-        rescan.set_halign(gtk::Align::Start);
-        rescan.add_css_class("pill");
+        let rescan = pill_button("刷新设备数据");
         {
             let weak = weak.clone();
             rescan.connect_clicked(move |_| {
@@ -621,7 +671,7 @@ impl DevicePage {
         empty.set_vexpand(true);
         empty.set_margin_top(48);
         empty.set_margin_bottom(48);
-        let icon = gtk::Image::from_icon_name("input-keyboard-symbolic");
+        let icon = gtk::Image::from_icon_name("mchose-device-symbolic");
         icon.set_pixel_size(72);
         icon.add_css_class("dim-label");
         empty.append(&icon);
@@ -737,11 +787,9 @@ impl DevicePage {
             } else {
                 "关闭"
             });
-            self.mac_value.set_text(if performance.mac_mode() {
-                "开启"
-            } else {
-                "关闭"
-            });
+            let mac_layout = ui.state.borrow().mac_layout;
+            self.mac_value
+                .set_text(if mac_layout { "开启" } else { "关闭" });
         } else {
             for label in [
                 &self.rate_value,
@@ -784,9 +832,7 @@ impl KeysPage {
         layer_combo.set_selected(0);
         layer_group.add(&layer_combo);
 
-        let reset_layer_btn = gtk::Button::with_label("恢复本层默认");
-        reset_layer_btn.add_css_class("pill");
-        reset_layer_btn.set_halign(gtk::Align::Start);
+        let reset_layer_btn = pill_button("恢复本层默认");
         {
             let weak = weak.clone();
             reset_layer_btn.connect_clicked(move |_| {
@@ -837,6 +883,10 @@ impl KeysPage {
         selected_group.add(&action_row);
         let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         actions.set_halign(gtk::Align::Start);
+        actions.set_margin_top(8);
+        actions.set_margin_bottom(8);
+        actions.set_margin_start(6);
+        actions.set_margin_end(6);
         let change_btn = gtk::Button::with_label("更改功能…");
         change_btn.add_css_class("suggested-action");
         let reset_key_btn = gtk::Button::with_label("恢复此键");
@@ -992,9 +1042,9 @@ impl LightingPage {
             row_box.set_margin_start(12);
             row_box.set_margin_end(12);
             let icon = gtk::Image::from_icon_name(if effect.mode == 0 {
-                "weather-clear-night-symbolic"
+                "mchose-light-off-symbolic"
             } else {
-                "display-brightness-symbolic"
+                "mchose-light-symbolic"
             });
             icon.set_pixel_size(18);
             icon.add_css_class("dim-label");
@@ -1005,7 +1055,7 @@ impl LightingPage {
             let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
             spacer.set_hexpand(true);
             row_box.append(&spacer);
-            let check = gtk::Image::from_icon_name("object-select-symbolic");
+            let check = gtk::Image::from_icon_name("mchose-check-symbolic");
             check.set_visible(false);
             row_box.append(&check);
             row.set_child(Some(&row_box));
@@ -1062,9 +1112,7 @@ impl LightingPage {
         content.append(&note);
 
         let reset_group = section(&content, "恢复");
-        let reset = gtk::Button::with_label("恢复灯效颜色默认值");
-        reset.set_halign(gtk::Align::Start);
-        reset.add_css_class("pill");
+        let reset = pill_button("恢复灯效颜色默认值");
         {
             let weak = weak.clone();
             reset.connect_clicked(move |_| {
@@ -1311,15 +1359,14 @@ impl PerformancePage {
         group.add(&win_lock);
 
         let mac = adw::SwitchRow::builder()
-            .title("Mac 模式")
-            .subtitle("交换 Alt 与 Win 键的位置")
+            .title("Mac 布局")
+            .subtitle("软件交换 Alt/Win；固件切换用 Fn+A / Fn+S")
             .build();
         group.add(&mac);
 
         let reset_group = section(&content, "恢复");
-        let reset_btn = gtk::Button::with_label("恢复性能默认值");
+        let reset_btn = pill_button("恢复性能默认值");
         reset_btn.add_css_class("destructive-action");
-        reset_btn.set_halign(gtk::Align::Start);
         {
             let weak = weak.clone();
             reset_btn.connect_clicked(move |_| {
@@ -1403,15 +1450,7 @@ impl PerformancePage {
                     if ui.performance_page.updating.get() {
                         return;
                     }
-                    let active = row.is_active();
-                    let Some(mut performance) = ui.state.borrow().performance.clone() else {
-                        return;
-                    };
-                    performance.set_mac_mode(active);
-                    if active {
-                        performance.set_win_lock(false);
-                    }
-                    ui.send(Request::SetPerformance(performance));
+                    ui.set_mac_layout(row.is_active());
                 }
             });
         }
@@ -1430,6 +1469,8 @@ impl PerformancePage {
     fn update(&self, ui: &AppUi) {
         let state = ui.state.borrow();
         let performance = state.performance.clone();
+        let mac_layout = state.mac_layout;
+        let mac_ready = state.keys[0].is_some() && !state.loading;
         drop(state);
         self.updating.set(true);
         if let Some(performance) = performance {
@@ -1443,16 +1484,16 @@ impl PerformancePage {
             self.latency.set_active(performance.latency_on());
             self.sleep.set_value(performance.sleep_minutes() as f64);
             self.win_lock.set_active(performance.win_lock());
-            self.mac.set_active(performance.mac_mode());
+            self.mac.set_active(mac_layout);
             for row in [
                 self.rate.upcast_ref::<gtk::Widget>(),
                 self.latency.upcast_ref::<gtk::Widget>(),
                 self.sleep.upcast_ref::<gtk::Widget>(),
                 self.win_lock.upcast_ref::<gtk::Widget>(),
-                self.mac.upcast_ref::<gtk::Widget>(),
             ] {
                 row.set_sensitive(true);
             }
+            self.mac.set_sensitive(mac_ready);
         } else {
             self.rate.set_selected(gtk::INVALID_LIST_POSITION);
             self.latency.set_active(false);
@@ -1496,27 +1537,23 @@ impl SettingsPage {
         let simulate_value = value_row(&simulate, "模拟设备");
 
         let permissions = section(&content, "HID 权限");
-        let rule_label = gtk::Label::new(Some(UDEV_RULE));
-        rule_label.add_css_class("monospace");
-        rule_label.set_wrap(true);
-        rule_label.set_selectable(true);
-        rule_label.set_xalign(0.0);
+        let explain = adw::ActionRow::builder()
+            .title("权限不足时")
+            .subtitle("读取设备提示无权限时，请安装以下 udev 规则并重新插拔接收器。")
+            .build();
+        explain.set_subtitle_lines(2);
+        permissions.add(&explain);
+
         let rule_row = adw::ActionRow::builder()
             .title("udev 规则")
-            .subtitle("如果提示无权限，请让系统管理员安装以下规则并重新插拔接收器。")
+            .subtitle(UDEV_RULE)
             .build();
-        rule_row.set_subtitle_lines(3);
-        permissions.add(&rule_row);
-        let rule_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        rule_box.set_margin_top(8);
-        rule_box.set_margin_bottom(8);
-        rule_box.set_margin_start(12);
-        rule_box.set_margin_end(12);
-        rule_box.append(&rule_label);
-        permissions.add(&rule_box);
-        let copy = gtk::Button::with_label("复制 udev 规则");
-        copy.set_halign(gtk::Align::Start);
-        copy.add_css_class("pill");
+        rule_row.set_subtitle_lines(2);
+        rule_row.add_css_class("udev-rule");
+        let copy = gtk::Button::from_icon_name("mchose-copy-symbolic");
+        copy.set_tooltip_text(Some("复制 udev 规则"));
+        copy.set_valign(gtk::Align::Center);
+        copy.add_css_class("flat");
         {
             let weak = weak.clone();
             copy.connect_clicked(move |_| {
@@ -1526,7 +1563,8 @@ impl SettingsPage {
                 }
             });
         }
-        permissions.add(&copy);
+        rule_row.add_suffix(&copy);
+        permissions.add(&rule_row);
 
         let about = section(&content, "关于");
         let version = adw::ActionRow::builder()
@@ -1540,9 +1578,7 @@ impl SettingsPage {
             .build();
         disclaimer.set_subtitle_lines(2);
         about.add(&disclaimer);
-        let about_btn = gtk::Button::with_label("关于 MCHOSE HUB");
-        about_btn.set_halign(gtk::Align::Start);
-        about_btn.add_css_class("pill");
+        let about_btn = pill_button("关于 MCHOSE HUB");
         {
             let weak = weak.clone();
             about_btn.connect_clicked(move |_| {
@@ -1649,6 +1685,10 @@ fn open_action_picker(ui: &Rc<AppUi>, matrix: usize, current: [u8; 4]) {
 
     let footer = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     footer.set_halign(gtk::Align::End);
+    footer.set_margin_top(8);
+    footer.set_margin_bottom(4);
+    footer.set_margin_start(4);
+    footer.set_margin_end(4);
     let disable = gtk::Button::with_label("设为禁用");
     if current == [0, 0, 0, 0] {
         disable.add_css_class("suggested-action");
@@ -1677,4 +1717,28 @@ fn open_action_picker(ui: &Rc<AppUi>, matrix: usize, current: [u8; 4]) {
     let content = content;
     dialog.set_child(Some(&content));
     dialog.present(Some(&ui.window));
+}
+
+#[cfg(test)]
+mod tests {
+    use gtk::gio;
+
+    #[test]
+    fn bundled_icons_are_embedded() {
+        let data = include_bytes!(concat!(env!("OUT_DIR"), "/mchose_icons.gresource"));
+        let resource =
+            gio::Resource::from_data(&gtk::glib::Bytes::from_static(data)).expect("icon resource");
+        for path in [
+            "/top/ddmt/mchosehub/icons/16x16/actions/mchose-device-symbolic.svg",
+            "/top/ddmt/mchosehub/icons/scalable/actions/mchose-copy-symbolic.svg",
+            "/top/ddmt/mchosehub/icons/scalable/apps/top.ddmt.mchosehub.svg",
+        ] {
+            assert!(
+                resource
+                    .lookup_data(path, gio::ResourceLookupFlags::NONE)
+                    .is_ok(),
+                "missing bundled icon: {path}"
+            );
+        }
+    }
 }

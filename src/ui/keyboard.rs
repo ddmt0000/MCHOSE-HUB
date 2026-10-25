@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use adw::StyleManager;
 use gtk::cairo;
 use gtk::prelude::*;
 
@@ -90,6 +91,13 @@ impl KeyboardView {
         });
         area.add_controller(click);
 
+        let style_area = area.downgrade();
+        StyleManager::default().connect_dark_notify(move |_| {
+            if let Some(area) = style_area.upgrade() {
+                area.queue_draw();
+            }
+        });
+
         let frame = gtk::AspectFrame::builder()
             .obey_child(false)
             .ratio((model.bounds.w / model.bounds.h) as f32)
@@ -178,12 +186,37 @@ fn draw_keyboard(cr: &cairo::Context, width: i32, height: i32, state: &KeyboardS
     let width = width as f64;
     let height = height as f64;
     let (s, ox, oy) = scale_for(state, width, height);
+    let dark = StyleManager::default().is_dark();
+    let (bg, frame_border, key_bg, key_border, text, sub, selected_border, modified_border) =
+        if dark {
+            (
+                (0.15, 0.15, 0.16),
+                (0.28, 0.28, 0.31),
+                (0.20, 0.20, 0.22),
+                (0.31, 0.31, 0.34),
+                (0.95, 0.95, 0.96),
+                (0.66, 0.66, 0.70),
+                (0.55, 0.75, 1.0),
+                (0.96, 0.83, 0.35),
+            )
+        } else {
+            (
+                (0.97, 0.97, 0.96),
+                (0.82, 0.82, 0.82),
+                (1.0, 1.0, 1.0),
+                (0.79, 0.79, 0.79),
+                (0.12, 0.12, 0.13),
+                (0.42, 0.42, 0.45),
+                (0.20, 0.45, 0.80),
+                (0.66, 0.47, 0.0),
+            )
+        };
 
     rounded_rect(cr, ox, oy, state.bounds.0 * s, state.bounds.1 * s, 16.0 * s);
-    cr.set_source_rgb(0.07, 0.07, 0.08);
+    cr.set_source_rgb(bg.0, bg.1, bg.2);
     let _ = cr.fill();
     cr.set_line_width(1.0);
-    cr.set_source_rgba(0.35, 0.35, 0.38, 0.6);
+    cr.set_source_rgba(frame_border.0, frame_border.1, frame_border.2, 0.7);
     let _ = cr.stroke();
 
     for key in &state.keys {
@@ -200,17 +233,17 @@ fn draw_keyboard(cr: &cairo::Context, width: i32, height: i32, state: &KeyboardS
         if selected {
             cr.set_source_rgb(0.208, 0.518, 0.894);
         } else {
-            cr.set_source_rgb(0.165, 0.165, 0.18);
+            cr.set_source_rgb(key_bg.0, key_bg.1, key_bg.2);
         }
         let _ = cr.fill();
         if selected {
-            cr.set_source_rgba(0.55, 0.75, 1.0, 0.9);
+            cr.set_source_rgba(selected_border.0, selected_border.1, selected_border.2, 0.9);
             cr.set_line_width(1.5);
         } else if modified {
-            cr.set_source_rgba(0.96, 0.83, 0.35, 0.8);
+            cr.set_source_rgba(modified_border.0, modified_border.1, modified_border.2, 0.8);
             cr.set_line_width(1.2);
         } else {
-            cr.set_source_rgba(0.3, 0.3, 0.33, 0.8);
+            cr.set_source_rgba(key_border.0, key_border.1, key_border.2, 0.85);
             cr.set_line_width(1.0);
         }
         rounded_rect(cr, x, y, w, h, (6.0 * s).clamp(3.0, 10.0));
@@ -219,7 +252,11 @@ fn draw_keyboard(cr: &cairo::Context, width: i32, height: i32, state: &KeyboardS
         let cx = x + w / 2.0;
         let cy = y + h / 2.0;
         cr.select_font_face("Sans", cairo::FontSlant::Normal, cairo::FontWeight::Normal);
-        cr.set_source_rgb(0.93, 0.93, 0.94);
+        if selected {
+            cr.set_source_rgb(1.0, 1.0, 1.0);
+        } else {
+            cr.set_source_rgb(text.0, text.1, text.2);
+        }
         if key.sub.is_empty() {
             let size = fit_font(&key.label, w, 11.0 * s);
             cr.set_font_size(size);
@@ -228,7 +265,11 @@ fn draw_keyboard(cr: &cairo::Context, width: i32, height: i32, state: &KeyboardS
             let size = fit_font(&key.label, w, 10.5 * s).min(12.0);
             cr.set_font_size(size);
             draw_text_centered(cr, &key.label, cx, cy - 3.0 * s);
-            cr.set_source_rgba(0.65, 0.65, 0.7, 1.0);
+            if selected {
+                cr.set_source_rgba(0.9, 0.95, 1.0, 1.0);
+            } else {
+                cr.set_source_rgba(sub.0, sub.1, sub.2, 1.0);
+            }
             let subsize = (8.0 * s).max(6.0);
             cr.set_font_size(subsize);
             draw_text_centered(cr, &key.sub, cx, cy + 9.0 * s);

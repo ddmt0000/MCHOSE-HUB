@@ -51,6 +51,11 @@ fn run_inner(write: bool) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut layers = Vec::new();
+    println!(
+        "perf raw macSwitch[27]={:#04x} winKeySwitch[15]={:#04x}",
+        performance.raw()[27],
+        performance.raw()[15]
+    );
     for layer in 0..3u8 {
         let keys = link.read_keys(layer)?;
         let changed = keys.keys.iter().filter(|k| **k != [0, 0, 0, 0]).count();
@@ -59,6 +64,14 @@ fn run_inner(write: bool) -> Result<(), Box<dyn std::error::Error>> {
             keys.keys.len(),
             keys.keys.first()
         );
+        if layer == 0 {
+            println!(
+                "layer0 Left_Win[11]={:?} Left_Alt[17]={:?} Right_Alt[91]={:?}",
+                keys.keys.get(11),
+                keys.keys.get(17),
+                keys.keys.get(91)
+            );
+        }
         layers.push(keys);
     }
 

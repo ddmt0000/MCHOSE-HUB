@@ -52,6 +52,11 @@ fn main() -> glib::ExitCode {
         return probe::run(write);
     }
 
+    let icon_data = include_bytes!(concat!(env!("OUT_DIR"), "/mchose_icons.gresource"));
+    let icons = gio::Resource::from_data(&glib::Bytes::from_static(icon_data))
+        .expect("Could not parse icon resources");
+    gio::resources_register(&icons);
+
     // Translation setup is best-effort so the app also runs from a build tree.
     let _ = bindtextdomain(GETTEXT_PACKAGE, LOCALEDIR);
     let _ = bind_textdomain_codeset(GETTEXT_PACKAGE, "UTF-8");

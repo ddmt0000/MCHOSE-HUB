@@ -22,3 +22,8 @@
 .battery-bar {
     min-width: 160px;
 }
+
+.udev-rule subtitle {
+    font-family: monospace;
+    font-size: 0.9em;
+}
