@@ -1,0 +1,24 @@
+.keyboard-frame {
+    margin: 2px;
+}
+
+.keyboard-drawing {
+    min-height: 180px;
+}
+
+.caption {
+    font-size: 0.82em;
+}
+
+.monospace {
+    font-family: monospace;
+    font-size: 0.9em;
+}
+
+.page-hint {
+    padding: 6px 2px;
+}
+
+.battery-bar {
+    min-width: 160px;
+}

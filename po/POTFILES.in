@@ -1,0 +1,6 @@
+# List of source files containing translatable strings.
+# Please keep this file sorted alphabetically.
+data/top.ddmt.mchosehub.desktop.in
+data/top.ddmt.mchosehub.metainfo.xml.in
+data/top.ddmt.mchosehub.gschema.xml
+src/application.rs

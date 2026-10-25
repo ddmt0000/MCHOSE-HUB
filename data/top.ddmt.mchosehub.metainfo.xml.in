@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>top.ddmt.mchosehub</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <name>MCHOSE HUB</name>
+  <summary>Configure MCHOSE K99 V2 keyboards on Linux</summary>
+  <description>
+    <p>
+      An unofficial native GNOME application for configuring the MCHOSE K99 V2
+      keyboard through its 2.4G receiver on Linux.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Device information and battery level</li>
+      <li>Per-key remapping for the default, Fn and Fn2 layers</li>
+      <li>Lighting effects, color, brightness and speed</li>
+      <li>Polling rate, low-latency mode, sleep time, Win lock and Mac mode</li>
+      <li>Restore factory defaults</li>
+    </ul>
+    <p>
+      This project is not affiliated with MCHOSE. Firmware updates, macros,
+      cloud features and audio features are not supported.
+    </p>
+  </description>
+
+  <developer id="top.ddmt">
+    <name>ddmt</name>
+  </developer>
+
+  <launchable type="desktop-id">top.ddmt.mchosehub.desktop</launchable>
+  <translation type="gettext">mchose_hub_linux</translation>
+  <content_rating type="oars-1.1" />
+
+  <releases>
+    <release version="0.1.0" date="2026-10-25">
+      <description>
+        <p>Initial release with MCHOSE K99 V2 2.4G support.</p>
+      </description>
+    </release>
+  </releases>
+</component>

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=MCHOSE HUB
+Comment=Configure MCHOSE K99 V2 keyboards
+Exec=mchose_hub_linux
+Icon=top.ddmt.mchosehub
+Terminal=false
+Type=Application
+Categories=Settings;HardwareSettings;Utility;
+Keywords=MCHOSE;keyboard;K99;HID;driver;
+StartupNotify=true
+DBusActivatable=true

@@ -1,0 +1,8 @@
+/target
+/build
+/builddir
+/.flatpak-builder
+/cargo-home
+*.gresource
+.idea/
+.vscode/
