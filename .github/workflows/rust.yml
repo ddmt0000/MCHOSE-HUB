@@ -1,0 +1,202 @@
+
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v*"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Linux packages
+    runs-on: ubuntu-26.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            gettext \
+            libgtk-4-dev \
+            libadwaita-1-dev \
+            libglib2.0-dev \
+            meson \
+            ninja-build \
+            dpkg-dev \
+            desktop-file-utils \
+            flatpak \
+            flatpak-builder \
+            elfutils
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check native library versions
+        run: |
+          pkg-config --modversion gtk4
+          pkg-config --modversion libadwaita-1
+          cargo --version
+
+      - name: Run tests
+        run: cargo test --locked
+
+      - name: Build binary
+        run: cargo build --release --locked
+
+      - name: Build release packages
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${GITHUB_REF_NAME#v}"
+          APP_ID="top.ddmt.mchosehub"
+          BIN="mchose_hub_linux"
+          DIST="$PWD/dist"
+          mkdir -p "$DIST"
+
+          # 1. Portable archive
+          ARCHIVE="mchose-hub-linux-${VERSION}-x86_64"
+          mkdir -p "$DIST/$ARCHIVE"
+
+          install -Dm755 "target/release/$BIN" \
+            "$DIST/$ARCHIVE/$BIN"
+          install -Dm644 README.md "$DIST/$ARCHIVE/README.md"
+          install -Dm644 COPYING "$DIST/$ARCHIVE/COPYING"
+          install -Dm644 udev/70-mchose-hub.rules \
+            "$DIST/$ARCHIVE/70-mchose-hub.rules"
+
+          cat > "$DIST/$ARCHIVE/INSTALL.txt" <<'EOF'
+          MCHOSE HUB for Linux
+
+          Run:
+            ./mchose_hub_linux
+
+          Install the required GTK4 and libadwaita runtime libraries
+          using your distribution's package manager.
+
+          For device access, see README.md and 70-mchose-hub.rules.
+          EOF
+
+          tar -C "$DIST" -czf "$DIST/$ARCHIVE.tar.gz" "$ARCHIVE"
+
+          # 2. Debian package
+          DEBROOT="$DIST/deb-root"
+          mkdir -p "$DEBROOT/usr/bin"
+          mkdir -p "$DEBROOT/usr/share/applications"
+          mkdir -p "$DEBROOT/usr/share/doc/mchose-hub-linux"
+          mkdir -p "$DEBROOT/usr/lib/udev/rules.d"
+
+          install -Dm755 "target/release/$BIN" \
+            "$DEBROOT/usr/bin/$BIN"
+          install -Dm644 README.md \
+            "$DEBROOT/usr/share/doc/mchose-hub-linux/README.md"
+          install -Dm644 COPYING \
+            "$DEBROOT/usr/share/doc/mchose-hub-linux/copyright"
+          install -Dm644 udev/70-mchose-hub.rules \
+            "$DEBROOT/usr/lib/udev/rules.d/70-mchose-hub.rules"
+
+          cat > "$DEBROOT/usr/share/applications/$APP_ID.desktop" <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=MCHOSE HUB
+          Comment=Configure MCHOSE K99 V2 on Linux
+          Exec=mchose_hub_linux
+          Terminal=false
+          Categories=Utility;Settings;HardwareSettings;
+          EOF
+
+          desktop-file-validate \
+            "$DEBROOT/usr/share/applications/$APP_ID.desktop"
+
+          # Calculate shared-library dependencies from the built executable.
+          DEPS="$(dpkg-shlibdeps -O "target/release/$BIN" \
+            | sed -n 's/^shlibs:Depends=//p')"
+
+          if [ -z "$DEPS" ]; then
+            echo "Could not determine Debian runtime dependencies"
+            exit 1
+          fi
+
+          mkdir -p "$DEBROOT/DEBIAN"
+          cat > "$DEBROOT/DEBIAN/control" <<EOF
+          Package: mchose-hub-linux
+          Version: $VERSION
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Depends: $DEPS
+          Maintainer: MCHOSE-HUB contributors
+          Description: Native Linux configuration tool for MCHOSE K99 V2
+           Rust and GTK4 application for configuring compatible keyboards.
+          EOF
+
+          dpkg-deb --build --root-owner-group \
+            "$DEBROOT" "$DIST/mchose-hub-linux_${VERSION}_amd64.deb"
+
+          # 3. Flatpak bundle using the repository's GNOME 50 manifest
+          flatpak remote-add --user --if-not-exists flathub \
+            https://dl.flathub.org/repo/flathub.flatpakrepo
+
+          flatpak-builder --user \
+            --install-deps-from=flathub \
+            --force-clean \
+            --repo="$DIST/flatpak-repo" \
+            "$DIST/flatpak-build" \
+            top.ddmt.mchosehub.json
+
+          flatpak build-bundle \
+            "$DIST/flatpak-repo" \
+            "$DIST/mchose-hub-linux-${VERSION}-x86_64.flatpak" \
+            "$APP_ID"
+
+          # Checksums for all three deliverables
+          cd "$DIST"
+          sha256sum \
+            "$ARCHIVE.tar.gz" \
+            "mchose-hub-linux_${VERSION}_amd64.deb" \
+            "mchose-hub-linux-${VERSION}-x86_64.flatpak" \
+            > SHA256SUMS
+
+      - name: Upload packages as workflow artifacts
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: mchose-hub-linux-packages
+          path: |
+            dist/*.tar.gz
+            dist/*.deb
+            dist/*.flatpak
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.tar.gz
+            dist/*.deb
+            dist/*.flatpak
+            dist/SHA256SUMS
