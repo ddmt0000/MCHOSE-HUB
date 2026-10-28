@@ -21,6 +21,8 @@
 mod application;
 mod config;
 mod device;
+mod macro_store;
+mod macro_table;
 mod model;
 mod probe;
 mod protocol;

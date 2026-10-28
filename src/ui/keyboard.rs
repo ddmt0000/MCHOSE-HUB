@@ -25,12 +25,23 @@ pub struct KeyboardState {
     defaults: Vec<[u8; 4]>,
     selected: Option<usize>,
     bounds: (f64, f64),
+    /// Paint mode turns the control into a per-key colour editor (mode 21),
+    /// where the key bindings and their modified markers are irrelevant.
+    paint: bool,
+    colors: Vec<Option<[u8; 3]>>,
 }
 
 impl KeyboardState {
     fn is_modified(&self, matrix: usize) -> bool {
+        if self.paint {
+            return false;
+        }
         self.bindings.get(matrix).copied().unwrap_or([0; 4])
             != self.defaults.get(matrix).copied().unwrap_or([0; 4])
+    }
+
+    fn color(&self, matrix: usize) -> Option<[u8; 3]> {
+        self.paint.then(|| self.colors.get(matrix).copied().flatten()).flatten()
     }
 }
 
@@ -64,6 +75,8 @@ impl KeyboardView {
             defaults: vec![[0; 4]; model.matrix.len()],
             selected: None,
             bounds: (model.bounds.w, model.bounds.h),
+            paint: false,
+            colors: vec![None; model.matrix.len()],
         }));
 
         let area = gtk::DrawingArea::new();
@@ -130,6 +143,15 @@ impl KeyboardView {
 
     pub fn set_selected(&self, selected: Option<usize>) {
         self.state.borrow_mut().selected = selected;
+        self.area.queue_draw();
+    }
+
+    /// Show per-key colours, or go back to the binding view.
+    pub fn set_paint(&self, paint: bool, colors: Vec<Option<[u8; 3]>>) {
+        let mut state = self.state.borrow_mut();
+        state.paint = paint;
+        state.colors = colors;
+        drop(state);
         self.area.queue_draw();
     }
 
@@ -229,11 +251,16 @@ fn draw_keyboard(cr: &cairo::Context, width: i32, height: i32, state: &KeyboardS
         }
         let selected = state.selected == Some(key.matrix);
         let modified = state.is_modified(key.matrix);
+        let painted = state.color(key.matrix);
         rounded_rect(cr, x, y, w, h, (6.0 * s).clamp(3.0, 10.0));
-        if selected {
-            cr.set_source_rgb(0.208, 0.518, 0.894);
-        } else {
-            cr.set_source_rgb(key_bg.0, key_bg.1, key_bg.2);
+        match (painted, selected) {
+            (Some(rgb), _) => cr.set_source_rgb(
+                rgb[0] as f64 / 255.0,
+                rgb[1] as f64 / 255.0,
+                rgb[2] as f64 / 255.0,
+            ),
+            (None, true) => cr.set_source_rgb(0.208, 0.518, 0.894),
+            (None, false) => cr.set_source_rgb(key_bg.0, key_bg.1, key_bg.2),
         }
         let _ = cr.fill();
         if selected {
@@ -252,7 +279,8 @@ fn draw_keyboard(cr: &cairo::Context, width: i32, height: i32, state: &KeyboardS
         let cx = x + w / 2.0;
         let cy = y + h / 2.0;
         cr.select_font_face("Sans", cairo::FontSlant::Normal, cairo::FontWeight::Normal);
-        if selected {
+        let light_text = painted.is_some_and(|rgb| luminance(rgb) < 0.55) || selected;
+        if light_text {
             cr.set_source_rgb(1.0, 1.0, 1.0);
         } else {
             cr.set_source_rgb(text.0, text.1, text.2);
@@ -265,7 +293,7 @@ fn draw_keyboard(cr: &cairo::Context, width: i32, height: i32, state: &KeyboardS
             let size = fit_font(&key.label, w, 10.5 * s).min(12.0);
             cr.set_font_size(size);
             draw_text_centered(cr, &key.label, cx, cy - 3.0 * s);
-            if selected {
+            if light_text {
                 cr.set_source_rgba(0.9, 0.95, 1.0, 1.0);
             } else {
                 cr.set_source_rgba(sub.0, sub.1, sub.2, 1.0);
@@ -275,6 +303,10 @@ fn draw_keyboard(cr: &cairo::Context, width: i32, height: i32, state: &KeyboardS
             draw_text_centered(cr, &key.sub, cx, cy + 9.0 * s);
         }
     }
+}
+
+fn luminance(rgb: [u8; 3]) -> f64 {
+    (0.2126 * rgb[0] as f64 + 0.7152 * rgb[1] as f64 + 0.0722 * rgb[2] as f64) / 255.0
 }
 
 fn fit_font(label: &str, width: f64, desired: f64) -> f64 {
@@ -300,5 +332,30 @@ mod tests {
     #[test]
     fn fit_font_shrinks_for_long_labels() {
         assert!(fit_font("A", 40.0, 11.0) > fit_font("Backspace", 40.0, 11.0));
+    }
+
+    #[test]
+    fn paint_mode_uses_matrix_indexes() {
+        let mut state = KeyboardState {
+            keys: Vec::new(),
+            bindings: Vec::new(),
+            defaults: Vec::new(),
+            selected: None,
+            bounds: (0.0, 0.0),
+            paint: true,
+            colors: vec![Some([255, 0, 0]), None],
+        };
+        assert_eq!(state.color(0), Some([255, 0, 0]));
+        assert_eq!(state.color(1), None);
+        assert_eq!(state.color(9), None);
+        state.paint = false;
+        assert_eq!(state.color(0), None);
+    }
+
+    #[test]
+    fn luminance_decides_label_colour() {
+        assert!(luminance([255, 255, 255]) > 0.55);
+        assert!(luminance([255, 255, 0]) > 0.55);
+        assert!(luminance([0, 0, 255]) < 0.55);
     }
 }

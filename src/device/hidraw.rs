@@ -50,6 +50,8 @@ pub enum DeviceError {
     Timeout,
     #[error("{0}")]
     Verify(&'static str),
+    #[error("{0}")]
+    Macro(#[from] crate::macro_table::MacroError),
 }
 
 // _IOWR('H', 0x07, 520) / _IOWR('H', 0x06, 520): feature payload plus report ID.

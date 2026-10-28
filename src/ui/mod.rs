@@ -1,4 +1,5 @@
 pub mod keyboard;
+mod macro_editor;
 
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
@@ -8,8 +9,10 @@ use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 
 use crate::device::{DeviceService, Discovery, Event, Presence, Request, Transport};
+use crate::macro_store;
+use crate::macro_table::{self, MacroDef, MacroType};
 use crate::model::Model;
-use crate::protocol::{Battery, KeyLayer, LightState, Performance};
+use crate::protocol::{Battery, DiyLight, KeyLayer, LightState, Performance};
 
 use self::keyboard::KeyboardView;
 
@@ -19,6 +22,20 @@ thread_local! {
 
 const UDEV_RULE: &str =
     "SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"05ac\", ATTRS{idProduct}==\"024f\", TAG+=\"uaccess\"";
+
+/// Lighting mode 21 stores its own per-key colour table.
+const DIY_MODE: u8 = 21;
+
+/// The seven swatches the HUB shows for the per-key editor.
+const DIY_PALETTE: [(&str, [u8; 3]); 7] = [
+    ("红", [255, 0, 0]),
+    ("橙", [255, 160, 0]),
+    ("黄", [255, 255, 0]),
+    ("绿", [0, 255, 0]),
+    ("青", [0, 255, 255]),
+    ("蓝", [0, 0, 255]),
+    ("紫", [255, 0, 255]),
+];
 
 #[derive(Default)]
 struct UiState {
@@ -30,6 +47,10 @@ struct UiState {
     performance: Option<Performance>,
     light: Option<LightState>,
     keys: [Option<KeyLayer>; 3],
+    diy: Option<DiyLight>,
+    /// 快捷指令的名称与节点存在本机（键盘不回读这张表），槽位号即下标。
+    macros: Vec<MacroDef>,
+    macro_types: Vec<MacroType>,
     mac_layout: bool,
     layer: u8,
     selected: Option<usize>,
@@ -57,6 +78,7 @@ pub struct AppUi {
     busy_box: gtk::Box,
     spinner: gtk::Spinner,
     busy_label: gtk::Label,
+    last_charging: Cell<Option<bool>>,
     state: Rc<RefCell<UiState>>,
     device_page: DevicePage,
     keys_page: KeysPage,
@@ -78,6 +100,7 @@ pub fn build_window(
         theme.add_resource_path("/top/ddmt/mchosehub/icons");
     }
     let service = DeviceService::start(model.clone(), simulate);
+    let (saved_macros, saved_kinds) = macro_store::load();
     let window = adw::ApplicationWindow::builder()
         .application(app)
         .title("MCHOSE HUB")
@@ -205,6 +228,12 @@ pub fn build_window(
                     {
                         ui.ensure_keys();
                     }
+                    if stack
+                        .visible_child_name()
+                        .is_some_and(|n| n == "lighting")
+                    {
+                        ui.ensure_diy();
+                    }
                 }
             });
         }
@@ -219,7 +248,12 @@ pub fn build_window(
             busy_box,
             spinner,
             busy_label,
-            state: Rc::new(RefCell::new(UiState::new())),
+            last_charging: Cell::new(None),
+            state: Rc::new(RefCell::new(UiState {
+                macros: saved_macros,
+                macro_types: saved_kinds,
+                ..UiState::new()
+            })),
             device_page,
             keys_page,
             lighting_page,
@@ -232,6 +266,13 @@ pub fn build_window(
 
     ui.start_events();
     ui.refresh_all();
+    // 失焦就暂停设备探测：应用级的 active-window 在失焦时不会清空，只能用窗口的 is-active。
+    let weak = Rc::downgrade(&ui);
+    ui.window.connect_is_active_notify(move |window| {
+        if let Some(ui) = weak.upgrade() {
+            ui.service.set_focus(window.is_active());
+        }
+    });
     ui.window.connect_close_request(|_| {
         CURRENT_UI.with(|slot| *slot.borrow_mut() = None);
         glib::Propagation::Proceed
@@ -243,7 +284,21 @@ pub fn build_window(
 
 fn load_css() {
     let provider = gtk::CssProvider::new();
-    provider.load_from_string(include_str!("style.css"));
+    let palette = DIY_PALETTE
+        .iter()
+        .enumerate()
+        .map(|(index, (_, rgb))| {
+            format!(
+                ".diy-{index} {{ background-color: rgb({}, {}, {}); }}",
+                rgb[0], rgb[1], rgb[2]
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    provider.load_from_string(&format!(
+        "{}\n{palette}",
+        include_str!("style.css")
+    ));
     if let Some(display) = gdk::Display::default() {
         gtk::style_context_add_provider_for_display(
             &display,
@@ -263,6 +318,21 @@ impl AppUi {
     }
 
     fn start_events(self: &Rc<Self>) {
+        let weak = Rc::downgrade(self);
+        glib::timeout_add_local(Duration::from_secs(10), move || {
+            match weak.upgrade() {
+                Some(ui) => {
+                    let state = ui.state.borrow();
+                    // 键盘休眠时厂商通道会长时间无响应，别把轮询变成持续占用；
+                    // 出过错就等用户手动刷新成功后再恢复轮询。
+                    if state.connected && state.error.is_none() {
+                        ui.send(Request::PollBattery);
+                    }
+                    glib::ControlFlow::Continue
+                }
+                None => glib::ControlFlow::Break,
+            }
+        });
         let events = self.service.events();
         let weak = Rc::downgrade(self);
         glib::timeout_add_local(Duration::from_millis(80), move || {
@@ -285,6 +355,7 @@ impl AppUi {
                 state.searching = false;
                 state.transport = Some(transport);
                 state.keys = [None, None, None];
+                state.diy = None;
                 state.selected = None;
                 state.error = None;
                 drop(state);
@@ -303,11 +374,22 @@ impl AppUi {
                 state.performance = None;
                 state.light = None;
                 state.keys = [None, None, None];
+                state.diy = None;
                 state.selected = None;
                 drop(state);
             }
             Event::Battery(battery) => {
+                let previous = self.last_charging.replace(Some(battery.charging()));
                 self.state.borrow_mut().battery = Some(battery);
+                if let Some(was) = previous {
+                    if was != battery.charging() {
+                        self.toast(if battery.charging() {
+                            "开始充电"
+                        } else {
+                            "停止充电"
+                        });
+                    }
+                }
             }
             Event::Performance(performance) => {
                 self.state.borrow_mut().performance = Some(performance);
@@ -327,6 +409,9 @@ impl AppUi {
                 if let Some(mac_layout) = inferred {
                     self.state.borrow_mut().mac_layout = mac_layout;
                 }
+            }
+            Event::Diy(diy) => {
+                self.state.borrow_mut().diy = Some(diy);
             }
             Event::Healthy => {
                 self.state.borrow_mut().error = None;
@@ -405,6 +490,42 @@ impl AppUi {
         }
     }
 
+    fn ensure_diy(&self) {
+        let state = self.state.borrow();
+        let wanted = state
+            .performance
+            .as_ref()
+            .is_some_and(|performance| performance.light_mode() == DIY_MODE);
+        if state.connected && wanted && state.diy.is_none() {
+            drop(state);
+            self.send(Request::LoadDiy);
+        }
+    }
+
+    fn diy_colors(&self) -> Vec<Option<[u8; 3]>> {
+        let state = self.state.borrow();
+        (0..self.model.matrix.len())
+            .map(|matrix| state.diy.as_ref().and_then(|diy| diy.color(matrix)))
+            .collect()
+    }
+
+    /// Clicking a key in the per-key editor sets the palette colour, and clicking
+    /// a key that already has that colour clears it, like the HUB.
+    fn paint_diy(self: &Rc<Self>, matrix: usize) {
+        let Some(palette) = self.lighting_page.palette_color() else {
+            self.toast("先选择颜色");
+            return;
+        };
+        let Some(mut diy) = self.state.borrow().diy.clone() else {
+            self.toast("正在读取逐键灯效…");
+            self.send(Request::LoadDiy);
+            return;
+        };
+        let next = DiyLight::next_color(diy.color(matrix), palette);
+        diy.set_color(matrix, next);
+        self.send(Request::SetDiy(diy));
+    }
+
     fn set_layer(&self, layer: u8) {
         if layer > 2 {
             return;
@@ -442,7 +563,135 @@ impl AppUi {
             return;
         }
         keys.keys[matrix] = value;
-        self.send(Request::SetKeys(layer, keys));
+        self.send(Request::SetKeys { layer, keys });
+    }
+
+    /// Assigning a command writes the command table first, then the key layer
+    /// that references the slot, so no key ever points at a missing slot.
+    fn assign_macro(self: &Rc<Self>, matrix: usize, slot: usize, kind: MacroType) {
+        let layer = self.state.borrow().layer;
+        let Some(mut keys) = self.state.borrow().keys[layer as usize].clone() else {
+            self.toast("按键数据尚未读取");
+            return;
+        };
+        if matrix >= keys.keys.len() {
+            return;
+        }
+        keys.keys[matrix] = macro_table::macro_action(slot, kind);
+        let macros = self.state.borrow().macros.clone();
+        self.commit_commands(macros, vec![(layer, keys)]);
+    }
+
+    /// 按键功能的显示文本；引用指令时显示指令名称。
+    fn action_text(&self, value: [u8; 4]) -> String {
+        if let Some((slot, _)) = macro_table::macro_ref(value) {
+            let state = self.state.borrow();
+            return match state.macros.get(slot) {
+                Some(macro_def) => format!("宏 · {}", macro_def.name),
+                None => format!("宏（槽位 {slot}，本机无定义）"),
+            };
+        }
+        self.model.action_label(value)
+    }
+
+    /// Run mode of a command slot: the byte on a key that holds it, else the
+    /// choice recorded locally for this command.
+    fn macro_type(&self, slot: usize) -> MacroType {
+        stored_macro_type(&self.state.borrow(), slot)
+    }
+
+    /// 键盘上正在被引用、但本机没有对应内容的槽位。写入会覆盖它们。
+    fn orphan_slots(&self) -> Vec<usize> {
+        let state = self.state.borrow();
+        let mut used = Vec::new();
+        for layer in &state.keys {
+            let Some(keys) = layer else { continue };
+            for value in &keys.keys {
+                if let Some((slot, _)) = macro_table::macro_ref(*value) {
+                    if slot >= state.macros.len() && !used.contains(&slot) {
+                        used.push(slot);
+                    }
+                }
+            }
+        }
+        used.sort_unstable();
+        used
+    }
+
+    /// 唯一的指令写入入口：先确认不会踩掉未知槽位，再落本机存储并下发。
+    fn commit_commands(self: &Rc<Self>, macros: Vec<MacroDef>, layers: Vec<(u8, KeyLayer)>) {
+        let apply = {
+            move |ui: &Rc<AppUi>| {
+                let macros = macros.clone();
+                let layers = layers.clone();
+                let kinds = {
+                    let mut state = ui.state.borrow_mut();
+                    if state.macro_types.len() < macros.len() {
+                        state.macro_types.resize(macros.len(), MacroType::HoldLoop);
+                    }
+                    state.macro_types.truncate(macros.len());
+                    state.macros = macros.clone();
+                    state.macro_types.clone()
+                };
+                if let Err(e) = macro_store::save(&macros, &kinds) {
+                    log::warn!("cannot save commands: {e}");
+                    ui.toast("指令已写入键盘，但本机存储写入失败");
+                }
+                ui.send(Request::CommitMacros {
+                    macros,
+                    layers,
+                });
+            }
+        };
+        match self.orphan_slots().first() {
+            Some(_) => {
+                let list = self
+                    .orphan_slots()
+                    .iter()
+                    .map(|slot| slot.to_string())
+                    .collect::<Vec<_>>()
+                    .join("、");
+                confirm(
+                    self,
+                    "键盘上有本机没有的指令",
+                    &format!("槽位 {list} 不认识，保存会覆盖掉它们。"),
+                    "继续保存",
+                    apply,
+                );
+            }
+            None => apply(self),
+        }
+    }
+
+    fn open_macro_editor(self: &Rc<Self>, slot: Option<usize>) {
+        macro_editor::open(&self.clone(), slot);
+    }
+
+    /// Deleting a command also rewrites the key layers: keys that used it are
+    /// disabled and the higher slot numbers shift down.
+    fn delete_macro(self: &Rc<Self>, slot: usize) {
+        let state = self.state.borrow();
+        if state.macros.get(slot).is_none() {
+            return;
+        }
+        let mut macros = state.macros.clone();
+        macros.remove(slot);
+        let mut types = state.macro_types.clone();
+        if slot < types.len() {
+            types.remove(slot);
+        }
+        let mut layers = Vec::new();
+        for layer in 0..3u8 {
+            let Some(keys) = state.keys[layer as usize].clone() else {
+                continue;
+            };
+            let mut changed = keys.clone();
+            if macro_table::remap_after_delete(&mut changed.keys, slot) {
+                layers.push((layer, changed));
+            }
+        }
+        drop(state);
+        self.commit_commands(macros, layers);
     }
 
     fn reset_selected_key(self: &Rc<Self>) {
@@ -466,7 +715,7 @@ impl AppUi {
             })
             .unwrap_or([0, 0, 0, 0]);
         keys.keys[matrix] = value;
-        self.send(Request::SetKeys(layer, keys));
+        self.send(Request::SetKeys { layer, keys });
     }
 
     fn set_mac_layout(self: &Rc<Self>, active: bool) {
@@ -485,7 +734,10 @@ impl AppUi {
             layer.keys[17]
         );
         self.state.borrow_mut().mac_layout = active;
-        self.send(Request::SetKeys(0, layer));
+        self.send(Request::SetKeys {
+            layer: 0,
+            keys: layer,
+        });
     }
 
     fn open_action_picker(self: &Rc<Self>, matrix: usize) {
@@ -523,10 +775,29 @@ impl AppUi {
         self.lighting_page.mode.set(mode);
         self.lighting_page
             .apply_state(self, mode, &performance, &light);
+        if mode == DIY_MODE && self.state.borrow().diy.is_none() {
+            self.send(Request::LoadDiy);
+        }
         if let Some((performance, light)) = self.lighting_page.desired(self) {
             self.schedule_lighting(performance, light);
         }
     }
+}
+
+/// The run mode of a command lives on the key action that references it, so a
+/// slot no key uses keeps the mode chosen in the editor.
+fn stored_macro_type(state: &UiState, slot: usize) -> MacroType {
+    for layer in &state.keys {
+        let Some(keys) = layer else { continue };
+        for value in &keys.keys {
+            if let Some((found, kind)) = macro_table::macro_ref(*value) {
+                if found == slot {
+                    return kind;
+                }
+            }
+        }
+    }
+    state.macro_types.get(slot).copied().unwrap_or(MacroType::HoldLoop)
 }
 
 fn page_container(title: &str, subtitle: &str) -> (gtk::ScrolledWindow, gtk::Box) {
@@ -624,6 +895,7 @@ struct DevicePage {
     wired_value: gtk::Label,
     wireless_value: gtk::Label,
     battery_bar: gtk::ProgressBar,
+    charge_value: gtk::Label,
     rate_value: gtk::Label,
     effect_value: gtk::Label,
     sleep_value: gtk::Label,
@@ -648,6 +920,7 @@ impl DevicePage {
         battery_bar.set_size_request(180, -1);
         battery_row.add_suffix(&battery_bar);
         info.add(&battery_row);
+        let charge_value = value_row(&info, "充电");
 
         let current = section(&details, "当前配置");
         let rate_value = value_row(&current, "回报率");
@@ -718,6 +991,7 @@ impl DevicePage {
             wired_value,
             wireless_value,
             battery_bar,
+            charge_value,
             rate_value,
             effect_value,
             sleep_value,
@@ -772,9 +1046,15 @@ impl DevicePage {
             self.battery_bar.set_fraction(battery.level as f64 / 100.0);
             self.battery_bar
                 .set_text(Some(&format!("{}%", battery.level)));
+            self.charge_value.set_text(match (battery.charging(), battery.fully_charged()) {
+                (true, _) => "充电中",
+                (false, true) => "已充满",
+                (false, false) => "未充电",
+            });
         } else {
             self.battery_bar.set_fraction(0.0);
             self.battery_bar.set_text(None);
+            self.charge_value.set_text("—");
         }
 
         if let Some(performance) = &state.performance {
@@ -828,6 +1108,8 @@ struct KeysPage {
     change_btn: gtk::Button,
     reset_key_btn: gtk::Button,
     hint: gtk::Label,
+    macro_group: adw::PreferencesGroup,
+    macro_list: gtk::ListBox,
     updating: Cell<bool>,
 }
 
@@ -883,6 +1165,33 @@ impl KeysPage {
         hint.add_css_class("dim-label");
         hint.set_xalign(0.0);
         keyboard_group.add(&hint);
+
+        let macro_group = section(&content, "快捷指令");
+        macro_group.set_description(Some("点一条可编辑或删除；在「更改功能」的指令页分配给按键。"));
+        let macro_list = gtk::ListBox::new();
+        macro_list.add_css_class("boxed-list");
+        macro_list.set_selection_mode(gtk::SelectionMode::None);
+        macro_group.add(&macro_list);
+        {
+            let weak = weak.clone();
+            macro_list.connect_row_activated(move |_, row| {
+                let Some(ui) = weak.upgrade() else { return };
+                let slot = row.index();
+                if slot >= 0 && (slot as usize) < ui.state.borrow().macros.len() {
+                    ui.open_macro_editor(Some(slot as usize));
+                }
+            });
+        }
+        let record_btn = pill_button("录制新指令…");
+        {
+            let weak = weak.clone();
+            record_btn.connect_clicked(move |_| {
+                if let Some(ui) = weak.upgrade() {
+                    ui.open_macro_editor(None);
+                }
+            });
+        }
+        macro_group.add(&record_btn);
 
         let selected_group = section(&content, "当前按键");
         let key_row = adw::ActionRow::builder()
@@ -950,6 +1259,8 @@ impl KeysPage {
             change_btn,
             reset_key_btn,
             hint,
+            macro_group,
+            macro_list,
             updating: Cell::new(false),
         }
     }
@@ -960,6 +1271,60 @@ impl KeysPage {
 
     fn select_visual(&self) {
         self.keyboard.queue_draw();
+    }
+
+    fn rebuild_macro_rows(&self, ui: &AppUi) {
+        while let Some(row) = self.macro_list.row_at_index(0) {
+            self.macro_list.remove(&row);
+        }
+        let orphans = ui.orphan_slots();
+        let description = if orphans.is_empty() {
+            "点一条可编辑或删除；在「更改功能」的指令页分配给按键。"
+        } else {
+            "键盘上还有本机没有的指令槽，保存会覆盖它们。"
+        };
+        self.macro_group.set_description(Some(description));
+        let macros = ui.state.borrow().macros.clone();
+        if macros.is_empty() {
+            let empty = adw::ActionRow::builder()
+                .title("还没有快捷指令")
+                .subtitle("录制一条后可分配到按键。")
+                .build();
+            empty.set_activatable(false);
+            self.macro_list.append(&empty);
+            return;
+        }
+        for (slot, macro_def) in macros.iter().enumerate() {
+            let kind = ui.macro_type(slot);
+            let subtitle = format!("{} · {} 个节点", kind.label(), macro_def.event_count());
+            let row = adw::ActionRow::builder()
+                .title(macro_def.name.as_str())
+                .subtitle(subtitle.as_str())
+                .build();
+            row.set_activatable(true);
+            let drop = gtk::Button::from_icon_name("user-trash-symbolic");
+            drop.set_tooltip_text(Some("删除"));
+            drop.set_valign(gtk::Align::Center);
+            drop.add_css_class("flat");
+            {
+                let holder = CURRENT_UI.with(|cell| cell.borrow().clone());
+                let name = macro_def.name.clone();
+                drop.connect_clicked(move |_| {
+                    let Some(holder) = holder.clone() else {
+                        return;
+                    };
+                    confirm(
+                        &holder,
+                        &format!("删除「{name}」？"),
+                        "引用这条指令的按键会变成禁用。",
+                        "删除",
+                        move |ui| ui.delete_macro(slot),
+                    );
+                });
+            }
+            row.add_suffix(&drop);
+            self.macro_list.append(&row);
+        }
     }
 
     fn update(&self, ui: &AppUi) {
@@ -986,6 +1351,8 @@ impl KeysPage {
             });
         }
 
+        self.rebuild_macro_rows(ui);
+
         let available = keys.is_some() && connected;
         self.reset_layer_btn.set_sensitive(available);
         self.change_btn
@@ -1007,7 +1374,7 @@ impl KeysPage {
             });
             if let (Some(keys), true) = (&keys, available) {
                 let value = keys.keys.get(matrix).copied().unwrap_or([0; 4]);
-                self.action_row.set_subtitle(&ui.model.action_label(value));
+                self.action_row.set_subtitle(&ui.action_text(value));
             } else {
                 self.action_row.set_subtitle("—");
             }
@@ -1032,6 +1399,10 @@ struct LightingPage {
     color_row: adw::ActionRow,
     color: gtk::ColorDialogButton,
     note: gtk::Label,
+    diy_group: adw::PreferencesGroup,
+    diy_keyboard: KeyboardView,
+    diy_custom: gtk::ColorDialogButton,
+    diy_index: Rc<Cell<usize>>,
     updating: Cell<bool>,
 }
 
@@ -1125,6 +1496,70 @@ impl LightingPage {
         note.set_xalign(0.0);
         content.append(&note);
 
+        let diy_group = section(&content, "逐键颜色");
+        let diy_keyboard = KeyboardView::new(model, {
+            let weak = weak.clone();
+            move |matrix| {
+                if let Some(ui) = weak.upgrade() {
+                    ui.paint_diy(matrix);
+                }
+            }
+        });
+        diy_keyboard.frame.set_margin_top(6);
+        diy_keyboard.frame.set_margin_bottom(6);
+        diy_keyboard.frame.set_margin_start(6);
+        diy_keyboard.frame.set_margin_end(6);
+        diy_group.add(&diy_keyboard.frame);
+
+        let palette = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+        palette.set_halign(gtk::Align::Start);
+        palette.set_margin_top(4);
+        palette.set_margin_bottom(4);
+        palette.set_margin_start(6);
+        palette.set_margin_end(6);
+        let diy_index = Rc::new(Cell::new(0usize));
+        let mut diy_swatches = Vec::new();
+        for (index, (name, _)) in DIY_PALETTE.iter().enumerate() {
+            let swatch = gtk::Button::new();
+            swatch.add_css_class("diy-swatch");
+            swatch.add_css_class(&format!("diy-{index}"));
+            swatch.set_tooltip_text(Some(name));
+            if index == 0 {
+                swatch.add_css_class("diy-selected");
+            }
+            palette.append(&swatch);
+            diy_swatches.push(swatch);
+        }
+        for (index, swatch) in diy_swatches.iter().enumerate() {
+            let selected_index = diy_index.clone();
+            let all = diy_swatches.clone();
+            let chosen = swatch.clone();
+            swatch.connect_clicked(move |_| {
+                selected_index.set(index);
+                for button in &all {
+                    if button == &chosen {
+                        button.add_css_class("diy-selected");
+                    } else {
+                        button.remove_css_class("diy-selected");
+                    }
+                }
+            });
+        }
+        let diy_custom = gtk::ColorDialogButton::new(Some(gtk::ColorDialog::new()));
+        diy_custom.set_valign(gtk::Align::Center);
+        diy_custom.set_tooltip_text(Some("自定义颜色"));
+        let custom_index = diy_index.clone();
+        let custom_swatches = diy_swatches.clone();
+        diy_custom.connect_rgba_notify(move |_| {
+            custom_index.set(usize::MAX);
+            for button in &custom_swatches {
+                button.remove_css_class("diy-selected");
+            }
+        });
+        palette.append(&diy_custom);
+        diy_group.add(&palette);
+        diy_group.set_visible(false);
+
         let reset_group = section(&content, "恢复");
         let reset = pill_button("恢复灯效颜色默认值");
         {
@@ -1201,7 +1636,26 @@ impl LightingPage {
             color_row,
             color,
             note,
+            diy_group,
+            diy_keyboard,
+            diy_custom,
+            diy_index,
             updating: Cell::new(false),
+        }
+    }
+
+    /// Colour the per-key editor paints with: a swatch, or the custom picker.
+    fn palette_color(&self) -> Option<[u8; 3]> {
+        let index = self.diy_index.get();
+        if index == usize::MAX {
+            let rgba = self.diy_custom.rgba();
+            Some([
+                (rgba.red() * 255.0).round() as u8,
+                (rgba.green() * 255.0).round() as u8,
+                (rgba.blue() * 255.0).round() as u8,
+            ])
+        } else {
+            DIY_PALETTE.get(index).map(|(_, rgb)| *rgb)
         }
     }
 
@@ -1292,15 +1746,22 @@ impl LightingPage {
                 self.note
                     .set_text(&format!("当前灯效（{mode}）不在支持列表中。"));
             }
-        } else if mode == 21 {
+        } else if mode == DIY_MODE {
             self.note
-                .set_text("自定义灯效：逐键颜色编辑暂未支持，当前会保留键盘中的自定义灯效。");
+                .set_text("自定义灯效：点击下方键盘为单个按键上色，再次点击取消。");
         } else if !color && !brightness && !speed && !multi {
             self.note.set_text("该灯效为动态效果，不提供参数调节。");
         } else {
             self.note.set_text("");
         }
         self.note.set_visible(!self.note.text().is_empty());
+        self.diy_group.set_visible(mode == DIY_MODE);
+        if mode == DIY_MODE {
+            let colors = ui.diy_colors();
+            self.diy_keyboard.set_paint(true, colors);
+        } else {
+            self.diy_keyboard.set_paint(false, Vec::new());
+        }
         self.effect_list.unselect_all();
         self.updating.set(false);
     }
@@ -1620,31 +2081,106 @@ impl SettingsPage {
     }
 }
 
+/// Flow box of flat buttons that a search entry can filter. The filter hides the
+/// flow box child itself, so a filtered-out action keeps no clickable cell.
+fn button_flow(
+    labels: &[String],
+    query: &Rc<RefCell<String>>,
+    current: Option<usize>,
+    on_pick: Rc<dyn Fn(usize)>,
+) -> gtk::FlowBox {
+    let flow = gtk::FlowBox::new();
+    flow.set_selection_mode(gtk::SelectionMode::None);
+    flow.set_homogeneous(false);
+    flow.set_max_children_per_line(9);
+    flow.set_column_spacing(6);
+    flow.set_row_spacing(6);
+    flow.set_halign(gtk::Align::Start);
+    flow.set_margin_top(8);
+    flow.set_margin_bottom(8);
+    flow.set_margin_start(8);
+    flow.set_margin_end(8);
+    for (index, label) in labels.iter().enumerate() {
+        let button = gtk::Button::with_label(label);
+        button.set_size_request(76, 36);
+        button.add_css_class("flat");
+        button.set_tooltip_text(Some(label));
+        if Some(index) == current {
+            button.add_css_class("suggested-action");
+        }
+        let on_pick = on_pick.clone();
+        button.connect_clicked(move |_| on_pick(index));
+        flow.append(&button);
+    }
+    let query_for_filter = query.clone();
+    flow.set_filter_func(move |child| {
+        let needle = query_for_filter.borrow().clone();
+        if needle.is_empty() {
+            return true;
+        }
+        let Some(button) = child
+            .child()
+            .and_then(|widget| widget.downcast::<gtk::Button>().ok())
+        else {
+            return true;
+        };
+        button
+            .label()
+            .is_some_and(|label| label.to_lowercase().contains(&needle))
+    });
+    flow
+}
+
+fn connect_search(search: &gtk::SearchEntry, query: &Rc<RefCell<String>>, flows: &[gtk::FlowBox]) {
+    let flows = flows.to_vec();
+    let query = query.clone();
+    search.connect_search_changed(move |entry| {
+        let needle = entry.text().to_lowercase();
+        *query.borrow_mut() = needle;
+        for flow in &flows {
+            flow.invalidate_filter();
+        }
+    });
+}
+
+fn picker_tab(stack: &gtk::Stack, id: &str, title: &str, child: &impl IsA<gtk::Widget>) {
+    let scroll = gtk::ScrolledWindow::builder()
+        .hscrollbar_policy(gtk::PolicyType::Never)
+        .vscrollbar_policy(gtk::PolicyType::Automatic)
+        .propagate_natural_height(true)
+        .max_content_height(300)
+        .valign(gtk::Align::Start)
+        .child(child)
+        .build();
+    stack.add_titled(&scroll, Some(id), title);
+}
+
 fn open_action_picker(ui: &Rc<AppUi>, matrix: usize, current: [u8; 4]) {
     let dialog = adw::Dialog::builder()
         .title("选择功能")
         .content_width(760)
-        .content_height(640)
         .build();
 
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 8);
     content.set_margin_top(12);
     content.set_margin_bottom(12);
     content.set_margin_start(12);
     content.set_margin_end(12);
+    content.set_valign(gtk::Align::Start);
 
     let search = gtk::SearchEntry::new();
     search.set_placeholder_text(Some("搜索功能…"));
     content.append(&search);
 
     let stack = gtk::Stack::new();
-    stack.set_vexpand(true);
     let switcher = gtk::StackSwitcher::new();
     switcher.set_stack(Some(&stack));
-    switcher.set_halign(gtk::Align::Center);
+    switcher.set_halign(gtk::Align::Start);
     content.append(&switcher);
 
-    let all_buttons: Rc<RefCell<Vec<(gtk::Button, String)>>> = Rc::new(RefCell::new(Vec::new()));
+    let query = Rc::new(RefCell::new(String::new()));
+    let mut flows = Vec::new();
+
     let categories: [(&str, &str, &Vec<crate::model::ActionItem>); 4] = [
         ("basic", "键盘", &ui.model.actions.basic),
         ("mouse", "鼠标", &ui.model.actions.mouse),
@@ -1652,87 +2188,111 @@ fn open_action_picker(ui: &Rc<AppUi>, matrix: usize, current: [u8; 4]) {
         ("system", "快捷", &ui.model.actions.system),
     ];
     for (id, title, actions) in categories {
-        let flow = gtk::FlowBox::new();
-        flow.set_selection_mode(gtk::SelectionMode::None);
-        flow.set_max_children_per_line(9);
-        flow.set_column_spacing(6);
-        flow.set_row_spacing(6);
-        flow.set_margin_top(8);
-        flow.set_margin_bottom(8);
-        flow.set_margin_start(8);
-        flow.set_margin_end(8);
-        for action in actions {
-            let button = gtk::Button::with_label(&action.label);
-            button.set_size_request(76, 36);
-            button.add_css_class("flat");
-            button.set_tooltip_text(Some(&action.label));
-            if action.value == current {
-                button.add_css_class("suggested-action");
-            }
-            let value = action.value;
-            let weak = Rc::downgrade(ui);
-            let dialog_clone = dialog.clone();
-            button.connect_clicked(move |_| {
-                if let Some(ui) = weak.upgrade() {
-                    ui.apply_key_action(matrix, value);
-                }
-                dialog_clone.close();
-            });
-            flow.insert(&button, -1);
-            all_buttons
-                .borrow_mut()
-                .push((button, action.label.to_lowercase()));
-        }
-        let scroll = gtk::ScrolledWindow::builder()
-            .hscrollbar_policy(gtk::PolicyType::Never)
-            .vexpand(true)
-            .child(&flow)
-            .build();
-        stack.add_titled(&scroll, Some(id), title);
+        let labels: Vec<String> = actions.iter().map(|action| action.label.clone()).collect();
+        let values: Vec<[u8; 4]> = actions.iter().map(|action| action.value).collect();
+        let flow = button_flow(
+            &labels,
+            &query,
+            values.iter().position(|value| *value == current),
+            {
+                let ui = ui.clone();
+                let dialog = dialog.clone();
+                Rc::new(move |pick| {
+                    if let Some(value) = values.get(pick) {
+                        ui.apply_key_action(matrix, *value);
+                    }
+                    dialog.close();
+                })
+            },
+        );
+        flows.push(flow.clone());
+        picker_tab(&stack, id, title, &flow);
     }
-
-    let searching = all_buttons.clone();
-    search.connect_search_changed(move |entry| {
-        let query = entry.text().to_lowercase();
-        for (button, label) in searching.borrow().iter() {
-            button.set_visible(query.is_empty() || label.contains(&query));
-        }
-    });
-
     content.append(&stack);
+    connect_search(&search, &query, &flows);
+
+    let macro_box = gtk::ListBox::new();
+    macro_box.add_css_class("boxed-list");
+    macro_box.set_selection_mode(gtk::SelectionMode::None);
+    macro_box.set_vexpand(false);
+    let macros = ui.state.borrow().macros.clone();
+    if macros.is_empty() {
+        let empty = adw::ActionRow::builder()
+            .title("还没有快捷指令")
+            .subtitle("先在按键页的「快捷指令」里录制一条。")
+            .build();
+        macro_box.append(&empty);
+    }
+    for (slot, macro_def) in macros.iter().enumerate() {
+        let kind = ui.macro_type(slot);
+        let subtitle = format!("{} · {} 个按键", kind.label(), macro_def.event_count());
+        let row = adw::ActionRow::builder()
+            .title(macro_def.name.as_str())
+            .subtitle(subtitle.as_str())
+            .build();
+        row.set_activatable(true);
+        if macro_table::macro_ref(current) == Some((slot, kind)) {
+            row.add_css_class("suggested-action");
+        }
+        macro_box.append(&row);
+    }
+    let stored = macros.len();
+    {
+        let ui = ui.clone();
+        let dialog = dialog.clone();
+        macro_box.connect_row_activated(move |_, row| {
+            let slot = row.index();
+            if slot < 0 || slot as usize >= stored {
+                return;
+            }
+            let slot = slot as usize;
+            ui.assign_macro(matrix, slot, ui.macro_type(slot));
+            dialog.close();
+        });
+    }
+    let macro_page = gtk::Box::new(gtk::Orientation::Vertical, 6);
+    macro_page.set_valign(gtk::Align::Start);
+    macro_page.append(&macro_box);
+    let macro_note = gtk::Label::new(Some("点击指令即分配到该按键；编辑请到按键页的「快捷指令」。"));
+    macro_note.add_css_class("dim-label");
+    macro_note.add_css_class("caption");
+    macro_note.set_xalign(0.0);
+    macro_note.set_wrap(true);
+    macro_page.append(&macro_note);
+    picker_tab(&stack, "macro", "指令", &macro_page);
+
+    let search_for_stack = search.clone();
+    stack.connect_visible_child_name_notify(move |stack| {
+        let is_macro = stack.visible_child_name().as_deref() == Some("macro");
+        search_for_stack.set_visible(!is_macro);
+    });
 
     let footer = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     footer.set_halign(gtk::Align::End);
     footer.set_margin_top(8);
-    footer.set_margin_bottom(4);
-    footer.set_margin_start(4);
-    footer.set_margin_end(4);
     let disable = gtk::Button::with_label("设为禁用");
     if current == [0, 0, 0, 0] {
         disable.add_css_class("suggested-action");
     }
     {
-        let weak = Rc::downgrade(ui);
-        let dialog_clone = dialog.clone();
+        let ui = ui.clone();
+        let dialog = dialog.clone();
         disable.connect_clicked(move |_| {
-            if let Some(ui) = weak.upgrade() {
-                ui.apply_key_action(matrix, [0, 0, 0, 0]);
-            }
-            dialog_clone.close();
+            ui.apply_key_action(matrix, [0, 0, 0, 0]);
+            dialog.close();
         });
     }
     let cancel = gtk::Button::with_label("取消");
     {
-        let dialog_clone = dialog.clone();
+        let dialog = dialog.clone();
         cancel.connect_clicked(move |_| {
-            dialog_clone.close();
+            dialog.close();
         });
     }
     footer.append(&disable);
     footer.append(&cancel);
     content.append(&footer);
 
-    let content = content;
     dialog.set_child(Some(&content));
     dialog.present(Some(&ui.window));
 }

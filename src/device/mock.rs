@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
+use crate::macro_table::MacroDef;
 use crate::model::Model;
-use crate::protocol::{Battery, KeyLayer, LightState, Performance};
+use crate::protocol::{Battery, DiyLight, KeyLayer, LightState, Performance};
 
 use super::hidraw::{DeviceError, DeviceInfo, Transport};
 use super::link::KeyboardLink;
@@ -12,6 +13,8 @@ pub struct MockLink {
     keys: [KeyLayer; 3],
     light: LightState,
     battery: Battery,
+    diy: DiyLight,
+    macros: Vec<MacroDef>,
 }
 
 impl MockLink {
@@ -36,8 +39,41 @@ impl MockLink {
                 level: 68,
                 status: 1,
             },
+            diy: DiyLight::empty(),
+            macros: demo_macros(),
         }
     }
+}
+
+/// Simulated devices start with two commands so the editor and the key picker
+/// can be exercised without a keyboard attached.
+fn demo_macros() -> Vec<MacroDef> {
+    use crate::macro_table::{Chip, MacroEvent, NodeKind};
+
+    let event = |kind, down| Chip::Event(MacroEvent { kind, down });
+    vec![
+        MacroDef {
+            name: "连点 A".to_string(),
+            chips: vec![
+                event(NodeKind::Key(4), true),
+                Chip::Delay(50),
+                event(NodeKind::Key(4), false),
+                Chip::Delay(50),
+            ],
+        },
+        MacroDef {
+            name: "复制粘贴".to_string(),
+            chips: vec![
+                event(NodeKind::Key(224), true),
+                Chip::Delay(50),
+                event(NodeKind::Key(6), true),
+                Chip::Delay(50),
+                event(NodeKind::Key(6), false),
+                Chip::Delay(50),
+                event(NodeKind::Key(224), false),
+            ],
+        },
+    ]
 }
 
 impl KeyboardLink for MockLink {
@@ -84,5 +120,27 @@ impl KeyboardLink for MockLink {
 
     fn read_battery(&mut self) -> Result<Battery, DeviceError> {
         Ok(self.battery)
+    }
+
+    fn probe(&mut self) -> bool {
+        true
+    }
+
+    fn read_diy(&mut self) -> Result<DiyLight, DeviceError> {
+        Ok(self.diy.clone())
+    }
+
+    fn write_diy(&mut self, diy: &DiyLight) -> Result<(), DeviceError> {
+        self.diy = diy.clone();
+        Ok(())
+    }
+
+    fn read_macros(&mut self) -> Result<Vec<MacroDef>, DeviceError> {
+        Ok(self.macros.clone())
+    }
+
+    fn write_macros(&mut self, macros: &[MacroDef]) -> Result<(), DeviceError> {
+        self.macros = macros.to_vec();
+        Ok(())
     }
 }

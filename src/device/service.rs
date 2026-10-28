@@ -1,13 +1,18 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
+use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
+use crate::macro_table::MacroDef;
 use crate::model::Model;
-use crate::protocol::{Battery, KeyLayer, LightState, Performance};
+use crate::protocol::{Battery, DiyLight, KeyLayer, LightState, Performance};
 
 use super::hidraw::{DeviceError, Transport};
 use super::link::{discover, open_detected, Discovery, KeyboardLink, WiredLink};
 use super::mock::MockLink;
+
+const SLEEP_HINT: &str = "键盘未响应（2.4G 休眠），按任意键唤醒后点击刷新";
 
 // Messages are short-lived; boxing the large variants would only add noise.
 #[allow(clippy::large_enum_variant)]
@@ -20,6 +25,7 @@ pub enum Event {
     Performance(Performance),
     Light(LightState),
     Keys(u8, KeyLayer),
+    Diy(DiyLight),
     Saved(&'static str),
     Healthy,
     Error(String),
@@ -29,10 +35,26 @@ pub enum Event {
 #[allow(clippy::large_enum_variant)]
 pub enum Request {
     Refresh,
+    /// 只读电量，供界面定时刷新充电状态；失败时静默跳过。
+    PollBattery,
     LoadKeys,
+    LoadDiy,
     SetPerformance(Performance),
-    SetKeys(u8, KeyLayer),
+    /// `macros` is written before the key layer so a key never points at a
+    /// command slot the keyboard does not have yet.
+    SetKeys {
+        layer: u8,
+        keys: KeyLayer,
+    },
     SetLighting(Performance, LightState),
+    SetDiy(DiyLight),
+    /// Writing the command table and the layers that reference it has to happen
+    /// in this order, otherwise a key can point at a slot the keyboard does not
+    /// have yet.
+    CommitMacros {
+        macros: Vec<MacroDef>,
+        layers: Vec<(u8, KeyLayer)>,
+    },
     ResetPerformance,
     ResetKeys(u8),
     ResetLight,
@@ -42,6 +64,7 @@ pub enum Request {
 pub struct DeviceService {
     tx: Sender<Request>,
     rx: async_channel::Receiver<Event>,
+    focus: Arc<AtomicBool>,
     _handle: JoinHandle<()>,
 }
 
@@ -49,13 +72,16 @@ impl DeviceService {
     pub fn start(model: Model, simulate: bool) -> Self {
         let (req_tx, req_rx) = std::sync::mpsc::channel();
         let (ev_tx, ev_rx) = async_channel::bounded(128);
+        let focus = Arc::new(AtomicBool::new(true));
+        let worker_focus = focus.clone();
         let handle = thread::Builder::new()
             .name("mchose-device".to_string())
-            .spawn(move || worker(model, simulate, req_rx, ev_tx))
+            .spawn(move || worker(model, simulate, req_rx, ev_tx, worker_focus))
             .expect("failed to spawn device worker");
         Self {
             tx: req_tx,
             rx: ev_rx,
+            focus,
             _handle: handle,
         }
     }
@@ -66,6 +92,11 @@ impl DeviceService {
 
     pub fn send(&self, request: Request) {
         let _ = self.tx.send(request);
+    }
+
+    /// 界面失焦时暂停设备探测，不再反复敲休眠的键盘；回到前台立即补一次。
+    pub fn set_focus(&self, active: bool) {
+        self.focus.store(active, Ordering::Relaxed);
     }
 }
 
@@ -137,8 +168,8 @@ fn announce_link(
     link: &mut dyn KeyboardLink,
     tx: &async_channel::Sender<Event>,
     last_error: &mut String,
-) {
-    let info = link.info();
+) -> bool {
+    let info = link.info().clone();
     log::info!("connected to {} ({})", info.product_name, info.hidraw);
     emit(
         tx,
@@ -146,12 +177,19 @@ fn announce_link(
             transport: info.transport,
         },
     );
+    if !link.probe() {
+        log::warn!("device silent on {}; assume asleep", info.transport.label());
+        emit(tx, Event::Busy(false, String::new()));
+        emit(tx, Event::Error(SLEEP_HINT.to_string()));
+        return false;
+    }
     emit(tx, Event::Busy(true, "正在读取设备…".to_string()));
     if read_all(link, tx, last_error) {
         emit(tx, Event::Healthy);
     }
     emit(tx, Event::Busy(false, String::new()));
     *last_error = String::new();
+    true
 }
 
 fn try_connect(
@@ -160,7 +198,7 @@ fn try_connect(
     tx: &async_channel::Sender<Event>,
     last_error: &mut String,
     last_discovery: &mut Option<Discovery>,
-) -> Option<Box<dyn KeyboardLink>> {
+) -> Option<(Box<dyn KeyboardLink>, bool)> {
     log::info!("try_connect simulate={simulate}");
     let mut link: Box<dyn KeyboardLink> = if simulate {
         Box::new(MockLink::new(model))
@@ -176,8 +214,8 @@ fn try_connect(
             }
         }
     };
-    announce_link(link.as_mut(), tx, last_error);
-    Some(link)
+    let alive = announce_link(link.as_mut(), tx, last_error);
+    Some((link, alive))
 }
 
 fn handle_request(
@@ -186,7 +224,15 @@ fn handle_request(
     link: &mut Box<dyn KeyboardLink>,
     tx: &async_channel::Sender<Event>,
     last_error: &mut String,
+    sleeping: &mut bool,
 ) -> bool {
+    if *sleeping {
+        if !link.probe() {
+            emit(tx, Event::Error(SLEEP_HINT.to_string()));
+            return true;
+        }
+        *sleeping = false;
+    }
     let result = match request {
         Request::Shutdown => return false,
         Request::Refresh => {
@@ -198,6 +244,16 @@ fn handle_request(
             }
             Ok(())
         }
+        Request::PollBattery => match link.read_battery() {
+            Ok(battery) => {
+                emit(tx, Event::Battery(battery));
+                Ok(())
+            }
+            Err(_) => {
+                *sleeping = true;
+                Ok(())
+            }
+        },
         Request::LoadKeys => {
             emit(tx, Event::Busy(true, "正在读取按键…".to_string()));
             let mut result = Ok(());
@@ -213,6 +269,28 @@ fn handle_request(
             emit(tx, Event::Busy(false, String::new()));
             result
         }
+        Request::LoadDiy => {
+            emit(tx, Event::Busy(true, "正在读取逐键灯效…".to_string()));
+            let result = match link.read_diy() {
+                Ok(diy) => {
+                    emit(tx, Event::Diy(diy));
+                    Ok(())
+                }
+                Err(e) => Err(e),
+            };
+            emit(tx, Event::Busy(false, String::new()));
+            result
+        }
+        Request::SetDiy(diy) => {
+            emit(tx, Event::Busy(true, "正在保存逐键灯效…".to_string()));
+            let result = link.write_diy(&diy);
+            if result.is_ok() {
+                emit(tx, Event::Diy(diy));
+                emit(tx, Event::Saved("逐键灯效已保存"));
+            }
+            emit(tx, Event::Busy(false, String::new()));
+            result
+        }
         Request::SetPerformance(performance) => {
             emit(tx, Event::Busy(true, "正在保存性能设置…".to_string()));
             let result = link.write_performance(&performance);
@@ -223,7 +301,7 @@ fn handle_request(
             emit(tx, Event::Busy(false, String::new()));
             result
         }
-        Request::SetKeys(layer, keys) => {
+        Request::SetKeys { layer, keys } => {
             emit(tx, Event::Busy(true, "正在保存按键…".to_string()));
             let result = link.write_keys(layer, &keys);
             if result.is_ok() {
@@ -242,6 +320,26 @@ fn handle_request(
                 emit(tx, Event::Performance(performance));
                 emit(tx, Event::Light(light));
                 emit(tx, Event::Saved("灯效已保存"));
+            }
+            emit(tx, Event::Busy(false, String::new()));
+            result
+        }
+        Request::CommitMacros { macros, layers } => {
+            emit(tx, Event::Busy(true, "正在保存快捷指令…".to_string()));
+            let mut result = link.write_macros(&macros);
+            if result.is_ok() {
+                for (layer, keys) in &layers {
+                    match link.write_keys(*layer, keys) {
+                        Ok(()) => emit(tx, Event::Keys(*layer, keys.clone())),
+                        Err(e) => {
+                            result = Err(e);
+                            break;
+                        }
+                    }
+                }
+            }
+            if result.is_ok() {
+                emit(tx, Event::Saved("快捷指令已保存"));
             }
             emit(tx, Event::Busy(false, String::new()));
             result
@@ -288,64 +386,80 @@ fn handle_request(
     true
 }
 
+/// 探测节奏：醒着时快扫；键盘休眠时放缓（继续盯有线插入，但不再密集敲通道）。
+/// 界面失焦时由调用方整体暂停，不在这条规则里。
+fn probe_interval(sleeping: bool) -> Duration {
+    if sleeping {
+        Duration::from_millis(1500)
+    } else {
+        Duration::from_millis(900)
+    }
+}
+
 fn worker(
     model: Model,
     simulate: bool,
     requests: Receiver<Request>,
     events: async_channel::Sender<Event>,
+    focus: Arc<AtomicBool>,
 ) {
     let mut link: Option<Box<dyn KeyboardLink>> = None;
     let mut last_error = String::new();
     let mut last_discovery = None;
-    let mut last_scan = Instant::now() - Duration::from_secs(1);
-    let mut last_presence_scan = Instant::now();
+    let mut next_probe = Instant::now();
     let mut announced_empty = false;
+    let mut sleeping = false;
     loop {
-        if link.is_none() && last_scan.elapsed() >= Duration::from_millis(900) {
-            last_scan = Instant::now();
-            if let Some(new_link) = try_connect(
-                &model,
-                simulate,
-                &events,
-                &mut last_error,
-                &mut last_discovery,
-            ) {
-                link = Some(new_link);
-                announced_empty = false;
-            } else if !announced_empty && last_error.is_empty() {
-                emit(&events, Event::Disconnected);
-                announced_empty = true;
-            }
-        }
-
-        if link.is_some() && !simulate && last_presence_scan.elapsed() >= Duration::from_secs(2) {
-            last_presence_scan = Instant::now();
-            let discovery = discover(&model);
-            publish_discovery(&events, &mut last_discovery, discovery.clone());
-            if discovery.wired.info().is_some()
-                && link
-                    .as_ref()
-                    .is_some_and(|current| current.info().transport == Transport::Wireless)
-            {
+        // 失焦期间不推进 next_probe，于是回到前台的第一轮就立刻探测一次。
+        if focus.load(Ordering::Relaxed) && Instant::now() >= next_probe {
+            log::debug!("probe sleeping={sleeping} link={}", link.is_some());
+            if link.is_none() {
+                if let Some((new_link, alive)) = try_connect(
+                    &model,
+                    simulate,
+                    &events,
+                    &mut last_error,
+                    &mut last_discovery,
+                ) {
+                    sleeping = !alive;
+                    link = Some(new_link);
+                    announced_empty = false;
+                } else if !announced_empty && last_error.is_empty() {
+                    emit(&events, Event::Disconnected);
+                    announced_empty = true;
+                }
+            } else if !simulate {
+                // 键盘休眠时通道不响应，只能靠盯着插拔来判断有线是否接入。
+                let discovery = discover(&model);
+                publish_discovery(&events, &mut last_discovery, discovery.clone());
                 if let Some(info) = discovery.wired.info() {
-                    match WiredLink::open_info(info.clone(), model.report.wired_id) {
-                        Ok(new_link) => {
-                            let mut new_link: Box<dyn KeyboardLink> = Box::new(new_link);
-                            announce_link(new_link.as_mut(), &events, &mut last_error);
-                            link = Some(new_link);
-                            announced_empty = false;
-                        }
-                        Err(e) => {
-                            log::warn!("wired interface detected but cannot open: {e}");
+                    if link
+                        .as_ref()
+                        .is_some_and(|current| current.info().transport == Transport::Wireless)
+                    {
+                        match WiredLink::open_info(info.clone(), model.report.wired_id) {
+                            Ok(new_link) => {
+                                let mut new_link: Box<dyn KeyboardLink> = Box::new(new_link);
+                                sleeping = !announce_link(new_link.as_mut(), &events, &mut last_error);
+                                link = Some(new_link);
+                                announced_empty = false;
+                            }
+                            Err(e) => {
+                                log::warn!("wired interface detected but cannot open: {e}");
+                            }
                         }
                     }
                 }
             }
+            // 探测过才排下一次；失焦时不排，next_probe 停在已过期的时刻，
+            // 于是回到前台的第一轮就立刻探测一次。
+            next_probe = Instant::now() + probe_interval(sleeping);
         }
 
         if let Some(current) = &link {
             if !current.is_present() {
                 link = None;
+                sleeping = false;
                 emit(&events, Event::Disconnected);
                 announced_empty = true;
             }
@@ -358,13 +472,14 @@ fn worker(
                 }
                 last_error.clear();
                 if link.is_none() {
-                    if let Some(new_link) = try_connect(
+                    if let Some((new_link, alive)) = try_connect(
                         &model,
                         simulate,
                         &events,
                         &mut last_error,
                         &mut last_discovery,
                     ) {
+                        sleeping = !alive;
                         link = Some(new_link);
                     }
                 }
@@ -375,8 +490,9 @@ fn worker(
                     );
                     continue;
                 };
-                if !handle_request(request, &model, current, &events, &mut last_error) {
+                if !handle_request(request, &model, current, &events, &mut last_error, &mut sleeping) {
                     link = None;
+                    sleeping = false;
                     emit(&events, Event::Disconnected);
                     announced_empty = true;
                 }

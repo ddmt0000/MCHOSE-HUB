@@ -27,3 +27,42 @@
     font-family: monospace;
     font-size: 0.9em;
 }
+
+.diy-swatch {
+    min-width: 30px;
+    min-height: 22px;
+    padding: 0;
+    margin: 0;
+    border-radius: 6px;
+}
+
+.diy-swatch.diy-selected {
+    box-shadow: 0 0 0 2px @accent_bg_color;
+}
+
+/* 横向节点链：卡片式流程区，节点是可点的大色块。 */
+.macro-chip {
+    min-width: 78px;
+    min-height: 62px;
+    padding: 4px 10px;
+}
+
+.macro-delay {
+    min-width: 64px;
+    padding: 4px 8px;
+}
+
+.macro-hint {
+    margin: 0 10px;
+}
+
+.macro-node .macro-x,
+.macro-insert {
+    opacity: 0.3;
+}
+
+.macro-node:hover .macro-x,
+.macro-x:hover,
+.macro-flow:hover .macro-insert {
+    opacity: 1;
+}

@@ -2,15 +2,19 @@ use std::path::PathBuf;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
+use crate::macro_table::{self, MacroDef};
 use crate::model::Model;
 use crate::protocol::{
-    build_write_packets, get_battery_request, get_keys_request, get_light_request,
-    get_performance_request, wired_battery_request, wired_keys_request, wired_keys_write,
-    wired_light_request, wired_light_write, wired_performance_request, wired_performance_write,
-    wired_response, Battery, KeyLayer, LightState, Packet, Performance, ReadAssembler, WriteMode,
-    CMD_GET_BATTERY, CMD_GET_KEYS, CMD_GET_LIGHT, CMD_GET_PERFORMANCE, CMD_SET_KEYS, CMD_SET_LIGHT,
-    CMD_SET_PERFORMANCE, LIGHT_LEN, PERF_LEN, REPORT_ID, WIRED_CMD_GET_BATTERY, WIRED_CMD_GET_KEYS,
-    WIRED_CMD_GET_LIGHT, WIRED_CMD_GET_PERFORMANCE, WIRED_KEYS_READ_LEN, WIRED_REPORT_LEN,
+    build_write_packets, get_battery_request, get_diy_request, get_keys_request, get_light_request,
+    get_macro_request, get_performance_request, wired_battery_request, wired_diy_request,
+    wired_diy_write, wired_keys_request, wired_keys_write, wired_light_request, wired_light_write,
+    wired_macro_request, wired_macro_writes, wired_performance_request, wired_performance_write,
+    wired_response, Battery, DiyLight, KeyLayer, LightState, Packet, Performance, ReadAssembler,
+    WriteMode, CMD_GET_BATTERY, CMD_GET_DIY, CMD_GET_KEYS, CMD_GET_LIGHT, CMD_GET_MACRO,
+    CMD_GET_PERFORMANCE, CMD_SET_DIY, CMD_SET_KEYS, CMD_SET_LIGHT, CMD_SET_MACRO,
+    CMD_SET_PERFORMANCE, DIY_LEN, LIGHT_LEN, MACRO_LEN, PERF_LEN, REPORT_ID, WIRED_CMD_GET_BATTERY,
+    WIRED_CMD_GET_DIY, WIRED_CMD_GET_KEYS, WIRED_CMD_GET_LIGHT, WIRED_CMD_GET_MACRO,
+    WIRED_CMD_GET_PERFORMANCE, WIRED_KEYS_READ_LEN, WIRED_REPORT_LEN,
 };
 
 use super::hidraw::{find_receiver, find_wired, DeviceError, DeviceInfo, HidrawDevice};
@@ -25,6 +29,12 @@ pub trait KeyboardLink: Send {
     fn read_light(&mut self) -> Result<LightState, DeviceError>;
     fn write_light(&mut self, light: &LightState) -> Result<(), DeviceError>;
     fn read_battery(&mut self) -> Result<Battery, DeviceError>;
+    /// 便宜的存活探测：键盘休眠时用它一次判定，避免整轮读取各堵满超时。
+    fn probe(&mut self) -> bool;
+    fn read_diy(&mut self) -> Result<DiyLight, DeviceError>;
+    fn write_diy(&mut self, diy: &DiyLight) -> Result<(), DeviceError>;
+    fn read_macros(&mut self) -> Result<Vec<MacroDef>, DeviceError>;
+    fn write_macros(&mut self, macros: &[MacroDef]) -> Result<(), DeviceError>;
 }
 
 pub struct RealLink {
@@ -44,7 +54,17 @@ impl RealLink {
         expected: u8,
         timeout: Duration,
     ) -> Result<Vec<u8>, DeviceError> {
-        for attempt in 0..3 {
+        self.read_response_with(request, expected, timeout, 3)
+    }
+
+    fn read_response_with(
+        &mut self,
+        request: &[u8; 20],
+        expected: u8,
+        timeout: Duration,
+        attempts: u32,
+    ) -> Result<Vec<u8>, DeviceError> {
+        for attempt in 0..attempts {
             self.dev.drain();
             log::debug!("tx {:02x?} attempt={attempt}", request);
             self.dev.write_report(request)?;
@@ -207,6 +227,36 @@ impl KeyboardLink for RealLink {
         )?;
         Ok(Battery::from_bytes(&data)?)
     }
+
+    fn probe(&mut self) -> bool {
+        self.read_response_with(&get_battery_request(), CMD_GET_BATTERY, Duration::from_millis(700), 1)
+            .is_ok()
+    }
+
+    fn read_diy(&mut self) -> Result<DiyLight, DeviceError> {
+        let data = self.read_response(&get_diy_request(), CMD_GET_DIY, Duration::from_secs(5))?;
+        Ok(DiyLight::from_bytes(&data)?)
+    }
+
+    fn write_diy(&mut self, diy: &DiyLight) -> Result<(), DeviceError> {
+        self.write_packets(CMD_SET_DIY, diy.raw(), WriteMode::ExactLast)?;
+        let readback = self.read_diy()?;
+        if readback.raw() != diy.raw() {
+            return Err(DeviceError::Verify("逐键灯效写回校验失败"));
+        }
+        Ok(())
+    }
+
+    fn read_macros(&mut self) -> Result<Vec<MacroDef>, DeviceError> {
+        let data = self.read_response(&get_macro_request(), CMD_GET_MACRO, Duration::from_secs(6))?;
+        decode_macros(&data)
+    }
+
+    /// 键盘不会回读这张表（官方同样只写不校验），所以写完即结束。
+    fn write_macros(&mut self, macros: &[MacroDef]) -> Result<(), DeviceError> {
+        let table = macro_table::encode(macros)?;
+        self.write_packets(CMD_SET_MACRO, &table, WriteMode::ExactLast)
+    }
 }
 
 pub struct WiredLink {
@@ -339,6 +389,37 @@ impl KeyboardLink for WiredLink {
         let data = self.read_data(&wired_battery_request(), WIRED_CMD_GET_BATTERY, 2)?;
         Ok(Battery::from_bytes(&data)?)
     }
+
+    fn probe(&mut self) -> bool {
+        self.read_battery().is_ok()
+    }
+
+    fn read_diy(&mut self) -> Result<DiyLight, DeviceError> {
+        let data = self.read_data(&wired_diy_request(), WIRED_CMD_GET_DIY, DIY_LEN)?;
+        Ok(DiyLight::from_bytes(&data)?)
+    }
+
+    fn write_diy(&mut self, diy: &DiyLight) -> Result<(), DeviceError> {
+        self.send_report(&wired_diy_write(diy))?;
+        let readback = self.read_diy()?;
+        if readback.raw() != diy.raw() {
+            return Err(DeviceError::Verify("逐键灯效写回校验失败"));
+        }
+        Ok(())
+    }
+
+    fn read_macros(&mut self) -> Result<Vec<MacroDef>, DeviceError> {
+        let data = self.read_data(&wired_macro_request(), WIRED_CMD_GET_MACRO, MACRO_LEN)?;
+        decode_macros(&data)
+    }
+
+    fn write_macros(&mut self, macros: &[MacroDef]) -> Result<(), DeviceError> {
+        let table = macro_table::encode(macros)?;
+        for report in wired_macro_writes(&table)? {
+            self.send_report(&report)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -370,6 +451,19 @@ fn presence(result: Result<DeviceInfo, DeviceError>) -> Presence {
         Err(DeviceError::Permission { path }) => Presence::Denied(path),
         Err(_) => Presence::Absent,
     }
+}
+
+/// An erased flash region is all `0xFF`, an untouched one all `0x00`; both
+/// mean no commands rather than a parse failure.
+pub fn decode_macros(data: &[u8]) -> Result<Vec<MacroDef>, DeviceError> {
+    if data.iter().all(|byte| *byte == 0x00) || data.iter().all(|byte| *byte == 0xff) {
+        return Ok(Vec::new());
+    }
+    macro_table::decode(data).map_err(|error| {
+        let head: String = data.iter().take(32).map(|byte| format!("{byte:02x} ")).collect();
+        log::warn!("cannot parse macro table ({} bytes): {error}; head={head}", data.len());
+        DeviceError::Macro(error)
+    })
 }
 
 pub fn discover(model: &Model) -> Discovery {

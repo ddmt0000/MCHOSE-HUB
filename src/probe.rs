@@ -21,9 +21,14 @@ fn describe(presence: &Presence) -> String {
     }
 }
 
-fn run_inner(write: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let model = Model::load();
-    let discovery = discover(&model);
+fn run_inner(write: bool) -> Result<(), Box<dyn std::error::Error>> {    let model = Model::load();
+    let mut discovery = discover(&model);
+    // 诊断用：强制只走某一条链路，比较两种传输的指令表读取差异。
+    match std::env::var("MCHOSE_HUB_TRANSPORT").as_deref() {
+        Ok("wireless") => discovery.wired = crate::device::link::Presence::Absent,
+        Ok("wired") => discovery.wireless = crate::device::link::Presence::Absent,
+        _ => {}
+    }
     println!("detected wired: {}", describe(&discovery.wired));
     println!("detected wireless: {}", describe(&discovery.wireless));
     let mut link = open_detected(&discovery, &model)?;
@@ -62,6 +67,36 @@ fn run_inner(write: bool) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    let diy = link.read_diy()?;
+    let lit: Vec<(usize, [u8; 3])> = (0..crate::protocol::DIY_PLANES)
+        .filter_map(|index| diy.color(index).map(|color| (index, color)))
+        .collect();
+    println!("diy: {} lit keys", lit.len());
+    for (index, color) in &lit {
+        let name = model.matrix.get(*index).map_or("?", String::as_str);
+        println!(
+            "  diy {index:3} {name}: #{:02X}{:02X}{:02X}",
+            color[0], color[1], color[2]
+        );
+    }
+
+    let macros = match link.read_macros() {
+        Ok(macros) => macros,
+        Err(e) => {
+            println!("macros: 读取或解析失败（{e}）");
+            Vec::new()
+        }
+    };
+    println!("macros: {} slots", macros.len());
+    for (slot, macro_def) in macros.iter().enumerate() {
+        println!(
+            "  slot {slot}: {} · {} 节点 · 一轮 {}ms",
+            macro_def.name,
+            macro_def.event_count(),
+            macro_def.duration_ms()
+        );
+    }
+
     let mut layers = Vec::new();
     println!(
         "perf raw macSwitch[27]={:#04x} winKeySwitch[15]={:#04x}",
@@ -97,6 +132,12 @@ fn run_inner(write: bool) -> Result<(), Box<dyn std::error::Error>> {
         }
         link.write_light(&light)?;
         println!("light write verified");
+        link.write_diy(&diy)?;
+        println!("diy write verified");
+        if !macros.is_empty() {
+            link.write_macros(&macros)?;
+            println!("macro write verified");
+        }
     }
 
     Ok(())

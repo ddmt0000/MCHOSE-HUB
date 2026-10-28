@@ -10,12 +10,19 @@ pub const PACKET_PAYLOAD: usize = 19;
 pub const KEY_COUNT: usize = 113;
 pub const PERF_LEN: usize = 128;
 pub const LIGHT_LEN: usize = 490;
+pub const DIY_LEN: usize = 378;
+pub const DIY_PLANES: usize = 126;
+pub const MACRO_LEN: usize = 512;
 
 pub const CMD_GET_KEYS: u8 = 0x41;
+pub const CMD_GET_DIY: u8 = 0x42;
+pub const CMD_GET_MACRO: u8 = 0x43;
 pub const CMD_GET_PERFORMANCE: u8 = 0x44;
 pub const CMD_GET_LIGHT: u8 = 0x49;
 pub const CMD_GET_BATTERY: u8 = 0x4a;
 pub const CMD_SET_KEYS: u8 = 0x01;
+pub const CMD_SET_DIY: u8 = 0x02;
+pub const CMD_SET_MACRO: u8 = 0x03;
 pub const CMD_SET_PERFORMANCE: u8 = 0x04;
 pub const CMD_SET_LIGHT: u8 = 0x09;
 
@@ -24,15 +31,26 @@ pub const WIRED_BUFFER_LEN: usize = WIRED_REPORT_LEN + 1;
 pub const WIRED_HEADER_LEN: usize = 7;
 pub const WIRED_KEYS_READ_LEN: usize = 504;
 pub const WIRED_CMD_GET_KEYS: u8 = 0x83;
+pub const WIRED_CMD_GET_MACRO: u8 = 0x82;
+pub const WIRED_CMD_GET_DIY: u8 = 0x86;
 pub const WIRED_CMD_GET_PERFORMANCE: u8 = 0x84;
 pub const WIRED_CMD_GET_BATTERY: u8 = 0x87;
 pub const WIRED_CMD_GET_LIGHT: u8 = 0x8a;
 pub const WIRED_CMD_SET_KEYS: u8 = 0x03;
+pub const WIRED_CMD_SET_DIY: u8 = 0x06;
+pub const WIRED_CMD_SET_MACRO: u8 = 0x05;
 pub const WIRED_CMD_SET_PERFORMANCE: u8 = 0x04;
 pub const WIRED_CMD_SET_LIGHT: u8 = 0x10;
 pub const WIRED_SPACE_PERFORMANCE: [u8; 6] = [0, 0, 1, 0, 0x80, 0];
 pub const WIRED_SPACE_LIGHT: [u8; 6] = [0, 0, 1, 0, 0x00, 0x02];
 pub const WIRED_SPACE_BATTERY: [u8; 6] = [0, 0, 1, 0, 0x02, 0];
+pub const WIRED_SPACE_DIY_READ: [u8; 6] = [0, 0, 1, 0, 0x7a, 0x01];
+pub const WIRED_SPACE_DIY_WRITE: [u8; 6] = [0, 0, 1, 0, 0x80, 0x01];
+/// Declaring the full 512 bytes still returns the key matrix on real hardware,
+/// not a command table, so the command list lives in local storage and this
+/// read is only used by `--probe`. Official never calls it either: its parser
+/// declares a single 4-byte field.
+pub const WIRED_SPACE_MACRO_READ: [u8; 6] = [0, 0, 1, 0, 0x00, 0x02];
 
 #[derive(Debug, Error)]
 pub enum ProtocolError {
@@ -174,6 +192,25 @@ pub fn get_light_request() -> [u8; 20] {
 
 pub fn get_battery_request() -> [u8; 20] {
     read_request(CMD_GET_BATTERY, 0)
+}
+
+pub fn get_diy_request() -> [u8; 20] {
+    read_request(CMD_GET_DIY, 0)
+}
+
+/// Unlike the other reads, the HUB's macro read carries a `10 03 02` descriptor
+/// in the data area; sending zeros instead gets no response.
+pub fn get_macro_request() -> [u8; 20] {
+    let mut payload = [0u8; PACKET_PAYLOAD];
+    payload[0] = CMD_GET_MACRO;
+    payload[1] = 0x01;
+    payload[4] = 0x10;
+    payload[5] = 0x03;
+    payload[6] = 0x02;
+    let mut report = [0u8; 20];
+    report[0] = REPORT_ID;
+    report[1..].copy_from_slice(&payload);
+    report
 }
 
 #[derive(Debug, Default)]
@@ -446,6 +483,101 @@ pub fn color_offset(mode: u8) -> Option<usize> {
     })
 }
 
+/// Per-key colours for lighting mode 21: three 126 byte planes (red, green,
+/// blue) indexed by key matrix slot. All zero means the key is unlit.
+#[derive(Debug, Clone)]
+pub struct DiyLight {
+    raw: [u8; DIY_LEN],
+}
+
+impl DiyLight {
+    pub fn empty() -> Self {
+        Self {
+            raw: [0u8; DIY_LEN],
+        }
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ProtocolError> {
+        if bytes.len() < DIY_LEN {
+            return Err(ProtocolError::BadLength(bytes.len()));
+        }
+        let mut raw = [0u8; DIY_LEN];
+        raw.copy_from_slice(&bytes[..DIY_LEN]);
+        Ok(Self { raw })
+    }
+
+    pub fn raw(&self) -> &[u8; DIY_LEN] {
+        &self.raw
+    }
+
+    pub fn color(&self, matrix: usize) -> Option<[u8; 3]> {
+        if matrix >= DIY_PLANES {
+            return None;
+        }
+        let rgb = [
+            self.raw[matrix],
+            self.raw[DIY_PLANES + matrix],
+            self.raw[2 * DIY_PLANES + matrix],
+        ];
+        (rgb != [0, 0, 0]).then_some(rgb)
+    }
+
+    pub fn set_color(&mut self, matrix: usize, rgb: [u8; 3]) {
+        if matrix >= DIY_PLANES {
+            return;
+        }
+        self.raw[matrix] = rgb[0];
+        self.raw[DIY_PLANES + matrix] = rgb[1];
+        self.raw[2 * DIY_PLANES + matrix] = rgb[2];
+    }
+
+    /// Clicking a key paints it with the palette colour; clicking a key that
+    /// already has exactly that colour turns it off, like the HUB.
+    pub fn next_color(current: Option<[u8; 3]>, palette: [u8; 3]) -> [u8; 3] {
+        if current == Some(palette) {
+            [0, 0, 0]
+        } else {
+            palette
+        }
+    }
+}
+
+pub fn wired_diy_request() -> [u8; WIRED_REPORT_LEN] {
+    wired_request(WIRED_CMD_GET_DIY, WIRED_SPACE_DIY_READ)
+}
+
+pub fn wired_macro_request() -> [u8; WIRED_REPORT_LEN] {
+    wired_request(WIRED_CMD_GET_MACRO, WIRED_SPACE_MACRO_READ)
+}
+
+pub fn wired_diy_write(diy: &DiyLight) -> [u8; WIRED_REPORT_LEN] {
+    let mut request = wired_request(WIRED_CMD_SET_DIY, WIRED_SPACE_DIY_WRITE);
+    request[WIRED_HEADER_LEN..WIRED_HEADER_LEN + DIY_LEN].copy_from_slice(diy.raw());
+    request
+}
+
+/// The wired macro write splits the table into 512 byte blocks and names each
+/// block in `space0`, so a table that does not fit is rejected instead of
+/// silently truncated.
+pub fn wired_macro_writes(table: &[u8]) -> Result<Vec<[u8; WIRED_REPORT_LEN]>, ProtocolError> {
+    let blocks = table.len().div_ceil(MACRO_LEN);
+    if blocks > 1 {
+        return Err(ProtocolError::BadLength(table.len()));
+    }
+    let len = u16::try_from(table.len()).map_err(|_| ProtocolError::BadLength(table.len()))?;
+    let space0 = [
+        0,
+        0,
+        blocks.max(1) as u8,
+        0,
+        (len & 0xff) as u8,
+        (len >> 8) as u8,
+    ];
+    let mut request = wired_request(WIRED_CMD_SET_MACRO, space0);
+    request[WIRED_HEADER_LEN..WIRED_HEADER_LEN + table.len()].copy_from_slice(table);
+    Ok(vec![request])
+}
+
 pub fn wired_keys_space(layer: u8) -> [u8; 6] {
     [layer, 0, 1, 0, 0xf8, 0x01]
 }
@@ -518,6 +650,16 @@ pub struct Battery {
 }
 
 impl Battery {
+    /// 低半字节：官方前端按 `chargeStatus === 1` 判“充电中”。
+    pub fn charging(&self) -> bool {
+        self.status & 0x0f == 1
+    }
+
+    /// 高半字节：`fullStatus`，电池充满后固件停充时置位。
+    pub fn fully_charged(&self) -> bool {
+        self.status & 0xf0 != 0
+    }
+
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, ProtocolError> {
         if bytes.len() < 2 {
             return Err(ProtocolError::BadLength(bytes.len()));
@@ -721,5 +863,77 @@ mod tests {
             wired_response(&buffer[..6], WIRED_CMD_GET_BATTERY),
             Err(ProtocolError::ShortPacket { .. })
         ));
+    }
+
+    #[test]
+    fn battery_uses_low_nibble_for_charging() {
+        // 真机三种取值：无线 50% = 01、有线 100% = 10、有线 100% = 11
+        let charging = Battery::from_bytes(&[50, 0x01]).unwrap();
+        assert!(charging.charging() && !charging.fully_charged());
+        let topped = Battery::from_bytes(&[100, 0x10]).unwrap();
+        assert!(!topped.charging() && topped.fully_charged());
+        let plugged = Battery::from_bytes(&[100, 0x11]).unwrap();
+        assert!(plugged.charging() && plugged.fully_charged());
+        let idle = Battery::from_bytes(&[80, 0x00]).unwrap();
+        assert!(!idle.charging() && !idle.fully_charged());
+    }
+
+    #[test]
+    fn macro_read_request_carries_descriptor() {
+        let read = get_macro_request();
+        assert_eq!(read[0], REPORT_ID);
+        assert_eq!(&read[1..4], &[CMD_GET_MACRO, 0x01, 0x00]);
+        assert_eq!(&read[5..8], &[0x10, 0x03, 0x02]);
+        assert_eq!(get_diy_request()[1], CMD_GET_DIY);
+    }
+
+    #[test]
+    fn diy_table_uses_three_planes() {
+        let mut diy = DiyLight::empty();
+        assert_eq!(diy.color(0), None);
+        diy.set_color(0, [255, 0, 0]);
+        diy.set_color(95, [0, 0, 255]);
+        assert_eq!(diy.color(0), Some([255, 0, 0]));
+        assert_eq!(diy.raw()[0], 255);
+        assert_eq!(diy.raw()[DIY_PLANES], 0);
+        assert_eq!(diy.raw()[2 * DIY_PLANES + 95], 255);
+        assert_eq!(DiyLight::from_bytes(diy.raw()).unwrap().color(95), Some([0, 0, 255]));
+        assert_eq!(diy.color(DIY_PLANES), None);
+    }
+
+    #[test]
+    fn diy_click_paints_then_clears() {
+        let red = [255, 0, 0];
+        assert_eq!(DiyLight::next_color(None, red), red);
+        assert_eq!(DiyLight::next_color(Some(red), red), [0, 0, 0]);
+        // 与官方一致：已点亮成别的颜色时再点改成当前调色板色，而不是熄灭。
+        assert_eq!(DiyLight::next_color(Some([0, 0, 255]), red), red);
+    }
+
+    #[test]
+    fn diy_write_is_27_full_packets() {
+        let packets = build_write_packets(CMD_SET_DIY, DiyLight::empty().raw(), WriteMode::ExactLast);
+        assert_eq!(packets.len(), 27);
+        assert!(packets.iter().all(|p| p[2] == 27));
+        assert!(packets.iter().all(|p| p[4] == 14));
+    }
+
+    #[test]
+    fn wired_diy_and_macro_frames_match_hub() {
+        let read = wired_diy_request();
+        assert_eq!(&read[..7], &[0x86, 0, 0, 1, 0, 0x7a, 0x01]);
+
+        let mut diy = DiyLight::empty();
+        diy.set_color(0, [1, 2, 3]);
+        let write = wired_diy_write(&diy);
+        assert_eq!(&write[..7], &[0x06, 0, 0, 1, 0, 0x80, 0x01]);
+        assert_eq!(write[7], 1);
+        assert_eq!(&write[7 + DIY_LEN..], &[0u8; WIRED_REPORT_LEN - 7 - DIY_LEN]);
+
+        let macro_write = wired_macro_writes(&[7u8; 40]).unwrap();
+        assert_eq!(macro_write.len(), 1);
+        assert_eq!(&macro_write[0][..7], &[0x05, 0, 0, 1, 0, 40, 0]);
+        assert_eq!(macro_write[0][7], 7);
+        assert!(wired_macro_writes(&[0u8; MACRO_LEN + 1]).is_err());
     }
 }

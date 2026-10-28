@@ -1,6 +1,45 @@
 use serde::Deserialize;
 
+use crate::macro_table::NodeKind;
+
 const MODEL_JSON: &str = include_str!("../data/models/k99_v2.json");
+
+/// Modifier actions store a bit mask in byte 1; macro nodes store the HID usage.
+const MODIFIER_USAGES: &[(u8, u8)] = &[
+    (1, 224),
+    (2, 225),
+    (4, 226),
+    (8, 227),
+    (16, 228),
+    (32, 229),
+    (64, 230),
+    (128, 231),
+];
+
+/// The keyboard action byte and the macro node bitmask differ for mouse keys.
+const MOUSE_NODE_MASKS: &[(u8, u8)] = &[(1, 1), (2, 2), (3, 4), (4, 8), (5, 16)];
+
+/// Convert a key-table action into the node form used inside a macro.
+pub fn action_to_node(value: [u8; 4]) -> Option<NodeKind> {
+    let [family, second, third, usage] = value;
+    match family {
+        0 if third == 0 => {
+            if second == 0 && usage > 0 {
+                Some(NodeKind::Key(usage))
+            } else {
+                MODIFIER_USAGES
+                    .iter()
+                    .find(|(mask, _)| *mask == second)
+                    .map(|(_, usage)| NodeKind::Key(*usage))
+            }
+        }
+        1 if third == 1 => MOUSE_NODE_MASKS
+            .iter()
+            .find(|(action, _)| *action == second)
+            .map(|(_, mask)| NodeKind::Mouse(*mask)),
+        _ => None,
+    }
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Receiver {
@@ -175,8 +214,41 @@ impl Model {
         }
     }
 
-    pub fn default_layer(&self, layer: usize) -> Vec<[u8; 4]> {
-        let raw = &self.defaults.key_layers[layer];
+    fn node_label_in(&self, kind: NodeKind) -> Option<&str> {
+        let groups: &[&Vec<ActionItem>] = match kind {
+            NodeKind::Key(_) => &[&self.actions.basic],
+            NodeKind::Mouse(_) => &[&self.actions.mouse],
+        };
+        groups
+            .iter()
+            .flat_map(|group| group.iter())
+            .find(|action| action_to_node(action.value) == Some(kind))
+            .map(|action| action.label.as_str())
+    }
+
+    pub fn node_label(&self, kind: NodeKind) -> String {
+        self.node_label_in(kind)
+            .map(str::to_string)
+            .unwrap_or_else(|| match kind {
+                NodeKind::Key(usage) => format!("按键 {usage}"),
+                NodeKind::Mouse(mask) => format!("鼠标键 {mask}"),
+            })
+    }
+
+    /// Key-table actions usable as macro nodes.
+    pub fn macro_choices(&self, mouse: bool) -> Vec<(String, NodeKind)> {
+        let group = if mouse {
+            &self.actions.mouse
+        } else {
+            &self.actions.basic
+        };
+        group
+            .iter()
+            .filter_map(|action| Some((action.label.clone(), action_to_node(action.value)?)))
+            .collect()
+    }
+
+    pub fn default_layer(&self, layer: usize) -> Vec<[u8; 4]> {        let raw = &self.defaults.key_layers[layer];
         raw.as_chunks::<4>()
             .0
             .iter()
@@ -228,5 +300,28 @@ mod tests {
         assert_eq!(model.action_label([1, 1, 1, 0]), "左键");
         assert_eq!(model.action_label([2, 0, 0, 205]), "播放/暂停");
         assert_eq!(model.action_label([13, 1, 0, 0]), "Fn2 层");
+    }
+
+    #[test]
+    fn macro_nodes_reuse_the_action_list() {
+        assert_eq!(action_to_node([0, 0, 0, 4]), Some(NodeKind::Key(4)));
+        assert_eq!(action_to_node([0, 0, 0, 101]), Some(NodeKind::Key(101)));
+        assert_eq!(action_to_node([0, 2, 0, 0]), Some(NodeKind::Key(225)));
+        assert_eq!(action_to_node([0, 16, 0, 0]), Some(NodeKind::Key(228)));
+        assert_eq!(action_to_node([1, 1, 1, 0]), Some(NodeKind::Mouse(1)));
+        assert_eq!(action_to_node([1, 5, 1, 0]), Some(NodeKind::Mouse(16)));
+        assert_eq!(action_to_node([1, 2, 1, 0]), Some(NodeKind::Mouse(2)));
+        // 滚轮与组合快捷键不能作为宏节点
+        assert_eq!(action_to_node([1, 8, 1, 0]), None);
+        assert_eq!(action_to_node([0, 1, 45, 0]), None);
+        assert_eq!(action_to_node([2, 0, 0, 205]), None);
+
+        let model = Model::load();
+        assert_eq!(model.node_label(NodeKind::Key(4)), "A");
+        assert_eq!(model.node_label(NodeKind::Key(225)), "Left Shift");
+        assert_eq!(model.node_label(NodeKind::Mouse(4)), "中键");
+        assert_eq!(model.node_label(NodeKind::Key(200)), "按键 200");
+        assert_eq!(model.macro_choices(false).len(), 104);
+        assert_eq!(model.macro_choices(true).len(), 5);
     }
 }
