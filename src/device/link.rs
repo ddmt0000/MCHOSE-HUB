@@ -3,6 +3,8 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use crate::macro_table::{self, MacroDef};
+use gettextrs::gettext;
+
 use crate::model::Model;
 use crate::protocol::{
     build_write_packets, get_battery_request, get_diy_request, get_keys_request, get_light_request,
@@ -179,7 +181,7 @@ impl KeyboardLink for RealLink {
         self.write_packets(CMD_SET_PERFORMANCE, performance.raw(), WriteMode::ExactLast)?;
         let readback = self.read_performance()?;
         if readback.raw() != performance.raw() {
-            return Err(DeviceError::Verify("性能设置写回校验失败"));
+            return Err(DeviceError::Verify(gettext("性能设置写回校验失败")));
         }
         Ok(())
     }
@@ -198,7 +200,7 @@ impl KeyboardLink for RealLink {
         self.write_packets(CMD_SET_KEYS, &bytes, WriteMode::Layer(layer))?;
         let readback = self.read_keys(layer)?;
         if readback.keys != keys.keys {
-            return Err(DeviceError::Verify("按键写回校验失败"));
+            return Err(DeviceError::Verify(gettext("按键写回校验失败")));
         }
         Ok(())
     }
@@ -214,7 +216,7 @@ impl KeyboardLink for RealLink {
         self.write_packets(CMD_SET_LIGHT, &bytes, WriteMode::TrimLast)?;
         let readback = self.read_light()?;
         if readback.raw() != light.raw() {
-            return Err(DeviceError::Verify("灯效写回校验失败"));
+            return Err(DeviceError::Verify(gettext("灯效写回校验失败")));
         }
         Ok(())
     }
@@ -229,8 +231,13 @@ impl KeyboardLink for RealLink {
     }
 
     fn probe(&mut self) -> bool {
-        self.read_response_with(&get_battery_request(), CMD_GET_BATTERY, Duration::from_millis(700), 1)
-            .is_ok()
+        self.read_response_with(
+            &get_battery_request(),
+            CMD_GET_BATTERY,
+            Duration::from_millis(700),
+            1,
+        )
+        .is_ok()
     }
 
     fn read_diy(&mut self) -> Result<DiyLight, DeviceError> {
@@ -242,13 +249,14 @@ impl KeyboardLink for RealLink {
         self.write_packets(CMD_SET_DIY, diy.raw(), WriteMode::ExactLast)?;
         let readback = self.read_diy()?;
         if readback.raw() != diy.raw() {
-            return Err(DeviceError::Verify("逐键灯效写回校验失败"));
+            return Err(DeviceError::Verify(gettext("逐键灯效写回校验失败")));
         }
         Ok(())
     }
 
     fn read_macros(&mut self) -> Result<Vec<MacroDef>, DeviceError> {
-        let data = self.read_response(&get_macro_request(), CMD_GET_MACRO, Duration::from_secs(6))?;
+        let data =
+            self.read_response(&get_macro_request(), CMD_GET_MACRO, Duration::from_secs(6))?;
         decode_macros(&data)
     }
 
@@ -348,7 +356,7 @@ impl KeyboardLink for WiredLink {
         self.send_report(&wired_performance_write(performance))?;
         let readback = self.read_performance()?;
         if readback.raw() != performance.raw() {
-            return Err(DeviceError::Verify("性能设置写回校验失败"));
+            return Err(DeviceError::Verify(gettext("性能设置写回校验失败")));
         }
         Ok(())
     }
@@ -366,7 +374,7 @@ impl KeyboardLink for WiredLink {
         self.send_report(&wired_keys_write(layer, keys))?;
         let readback = self.read_keys(layer)?;
         if readback.keys != keys.keys {
-            return Err(DeviceError::Verify("按键写回校验失败"));
+            return Err(DeviceError::Verify(gettext("按键写回校验失败")));
         }
         Ok(())
     }
@@ -380,7 +388,7 @@ impl KeyboardLink for WiredLink {
         self.send_report(&wired_light_write(light))?;
         let readback = self.read_light()?;
         if readback.raw() != light.raw() {
-            return Err(DeviceError::Verify("灯效写回校验失败"));
+            return Err(DeviceError::Verify(gettext("灯效写回校验失败")));
         }
         Ok(())
     }
@@ -403,7 +411,7 @@ impl KeyboardLink for WiredLink {
         self.send_report(&wired_diy_write(diy))?;
         let readback = self.read_diy()?;
         if readback.raw() != diy.raw() {
-            return Err(DeviceError::Verify("逐键灯效写回校验失败"));
+            return Err(DeviceError::Verify(gettext("逐键灯效写回校验失败")));
         }
         Ok(())
     }
@@ -460,8 +468,15 @@ pub fn decode_macros(data: &[u8]) -> Result<Vec<MacroDef>, DeviceError> {
         return Ok(Vec::new());
     }
     macro_table::decode(data).map_err(|error| {
-        let head: String = data.iter().take(32).map(|byte| format!("{byte:02x} ")).collect();
-        log::warn!("cannot parse macro table ({} bytes): {error}; head={head}", data.len());
+        let head: String = data
+            .iter()
+            .take(32)
+            .map(|byte| format!("{byte:02x} "))
+            .collect();
+        log::warn!(
+            "cannot parse macro table ({} bytes): {error}; head={head}",
+            data.len()
+        );
         DeviceError::Macro(error)
     })
 }

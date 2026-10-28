@@ -6,6 +6,8 @@
 
   <name>MCHOSE HUB</name>
   <summary>Configure MCHOSE K99 V2 keyboards on Linux</summary>
+  <url type="homepage">https://github.com/ddmt0000/MCHOSE-HUB</url>
+  <url type="bugtracker">https://github.com/ddmt0000/MCHOSE-HUB/issues</url>
   <description>
     <p>
       An unofficial native GNOME application for configuring the MCHOSE K99 V2

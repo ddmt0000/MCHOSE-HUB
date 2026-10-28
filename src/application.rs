@@ -128,8 +128,11 @@ impl MchoseHubLinuxApplication {
             .developer_name("ddmt")
             .version(VERSION)
             .developers(vec!["ddmt"])
-            .comments("非官方 Linux 客户端，用于配置 MCHOSE K99 V2 键盘。")
+            .comments(gettext(
+                "非官方 Linux 客户端，用于配置 MCHOSE K99 V2 键盘。",
+            ))
             .license_type(gtk::License::Gpl30)
+            .website(crate::config::REPO_URL)
             // Translators: Replace "translator-credits" with your name/username, and optionally an email or URL.
             .translator_credits(gettext("translator-credits"))
             .copyright("© 2026 ddmt")

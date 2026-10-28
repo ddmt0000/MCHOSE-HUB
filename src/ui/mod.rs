@@ -6,9 +6,11 @@ use std::rc::{Rc, Weak};
 use std::time::Duration;
 
 use adw::prelude::*;
+use gettextrs::gettext;
 use gtk::{gdk, gio, glib};
 
 use crate::device::{DeviceService, Discovery, Event, Presence, Request, Transport};
+use crate::i18n::{msgid, tf};
 use crate::macro_store;
 use crate::macro_table::{self, MacroDef, MacroType};
 use crate::model::Model;
@@ -28,13 +30,13 @@ const DIY_MODE: u8 = 21;
 
 /// The seven swatches the HUB shows for the per-key editor.
 const DIY_PALETTE: [(&str, [u8; 3]); 7] = [
-    ("红", [255, 0, 0]),
-    ("橙", [255, 160, 0]),
-    ("黄", [255, 255, 0]),
-    ("绿", [0, 255, 0]),
-    ("青", [0, 255, 255]),
-    ("蓝", [0, 0, 255]),
-    ("紫", [255, 0, 255]),
+    (msgid("红"), [255, 0, 0]),
+    (msgid("橙"), [255, 160, 0]),
+    (msgid("黄"), [255, 255, 0]),
+    (msgid("绿"), [0, 255, 0]),
+    (msgid("青"), [255, 255, 0]),
+    (msgid("蓝"), [0, 0, 255]),
+    (msgid("紫"), [255, 0, 255]),
 ];
 
 #[derive(Default)]
@@ -122,31 +124,31 @@ pub fn build_window(
         stack.add_titled_with_icon(
             &device_page.root,
             Some("device"),
-            "设备",
+            &gettext("设备"),
             "mchose-device-symbolic",
         );
         stack.add_titled_with_icon(
             &keys_page.root,
             Some("keys"),
-            "按键",
+            &gettext("按键"),
             "mchose-keys-symbolic",
         );
         stack.add_titled_with_icon(
             &lighting_page.root,
             Some("lighting"),
-            "灯效",
+            &gettext("灯效"),
             "mchose-light-symbolic",
         );
         stack.add_titled_with_icon(
             &performance_page.root,
             Some("performance"),
-            "性能",
+            &gettext("性能"),
             "mchose-performance-symbolic",
         );
         stack.add_titled_with_icon(
             &settings_page.root,
             Some("settings"),
-            "设置",
+            &gettext("设置"),
             "mchose-settings-symbolic",
         );
 
@@ -168,7 +170,7 @@ pub fn build_window(
         header.pack_start(&busy_box);
 
         let refresh = gtk::Button::from_icon_name("mchose-refresh-symbolic");
-        refresh.set_tooltip_text(Some("刷新设备数据"));
+        refresh.set_tooltip_text(Some(&gettext("刷新设备数据")));
         {
             let weak = weak.clone();
             refresh.connect_clicked(move |_| {
@@ -184,8 +186,8 @@ pub fn build_window(
         header.pack_end(&refresh);
 
         let menu = gio::Menu::new();
-        menu.append(Some("关于 MCHOSE HUB"), Some("app.about"));
-        menu.append(Some("退出"), Some("app.quit"));
+        menu.append(Some(&gettext("关于 MCHOSE HUB")), Some("app.about"));
+        menu.append(Some(&gettext("退出")), Some("app.quit"));
         let menu_button = gtk::MenuButton::builder()
             .icon_name("mchose-menu-symbolic")
             .menu_model(&menu)
@@ -193,7 +195,7 @@ pub fn build_window(
         header.pack_end(&menu_button);
 
         let banner = adw::Banner::new("");
-        banner.set_button_label(Some("重试"));
+        banner.set_button_label(Some(&gettext("重试")));
         banner.set_revealed(false);
         {
             let weak = weak.clone();
@@ -228,10 +230,7 @@ pub fn build_window(
                     {
                         ui.ensure_keys();
                     }
-                    if stack
-                        .visible_child_name()
-                        .is_some_and(|n| n == "lighting")
-                    {
+                    if stack.visible_child_name().is_some_and(|n| n == "lighting") {
                         ui.ensure_diy();
                     }
                 }
@@ -295,10 +294,7 @@ fn load_css() {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    provider.load_from_string(&format!(
-        "{}\n{palette}",
-        include_str!("style.css")
-    ));
+    provider.load_from_string(&format!("{}\n{palette}", include_str!("style.css")));
     if let Some(display) = gdk::Display::default() {
         gtk::style_context_add_provider_for_display(
             &display,
@@ -383,11 +379,13 @@ impl AppUi {
                 self.state.borrow_mut().battery = Some(battery);
                 if let Some(was) = previous {
                     if was != battery.charging() {
-                        self.toast(if battery.charging() {
-                            "开始充电"
-                        } else {
-                            "停止充电"
-                        });
+                        self.toast(
+                            &(if battery.charging() {
+                                gettext("开始充电")
+                            } else {
+                                gettext("停止充电")
+                            }),
+                        );
                     }
                 }
             }
@@ -418,15 +416,11 @@ impl AppUi {
             }
             Event::Saved(message) => {
                 self.state.borrow_mut().error = None;
-                self.toast(message);
+                self.toast(&message);
             }
             Event::Error(message) => {
-                let mut text = message;
-                if text.contains("无响应") || text.contains("超时") {
-                    text.push_str("（键盘可能已休眠，请按任意键唤醒后重试）");
-                }
                 let mut state = self.state.borrow_mut();
-                state.error = Some(text);
+                state.error = Some(message);
                 state.searching = false;
                 state.loading = false;
                 state.busy_text.clear();
@@ -475,7 +469,7 @@ impl AppUi {
             self.banner.set_revealed(true);
         } else if !connected && !searching {
             self.banner
-                .set_title("设备已断开，请检查 USB 线或 2.4G 接收器");
+                .set_title(&gettext("设备已断开，请检查 USB 线或 2.4G 接收器"));
             self.banner.set_revealed(true);
         } else {
             self.banner.set_revealed(false);
@@ -513,11 +507,11 @@ impl AppUi {
     /// a key that already has that colour clears it, like the HUB.
     fn paint_diy(self: &Rc<Self>, matrix: usize) {
         let Some(palette) = self.lighting_page.palette_color() else {
-            self.toast("先选择颜色");
+            self.toast(&gettext("先选择颜色"));
             return;
         };
         let Some(mut diy) = self.state.borrow().diy.clone() else {
-            self.toast("正在读取逐键灯效…");
+            self.toast(&gettext("正在读取逐键灯效…"));
             self.send(Request::LoadDiy);
             return;
         };
@@ -556,7 +550,7 @@ impl AppUi {
     fn apply_key_action(self: &Rc<Self>, matrix: usize, value: [u8; 4]) {
         let layer = self.state.borrow().layer;
         let Some(mut keys) = self.state.borrow().keys[layer as usize].clone() else {
-            self.toast("按键数据尚未读取");
+            self.toast(&gettext("按键数据尚未读取"));
             return;
         };
         if matrix >= keys.keys.len() {
@@ -571,7 +565,7 @@ impl AppUi {
     fn assign_macro(self: &Rc<Self>, matrix: usize, slot: usize, kind: MacroType) {
         let layer = self.state.borrow().layer;
         let Some(mut keys) = self.state.borrow().keys[layer as usize].clone() else {
-            self.toast("按键数据尚未读取");
+            self.toast(&gettext("按键数据尚未读取"));
             return;
         };
         if matrix >= keys.keys.len() {
@@ -587,8 +581,8 @@ impl AppUi {
         if let Some((slot, _)) = macro_table::macro_ref(value) {
             let state = self.state.borrow();
             return match state.macros.get(slot) {
-                Some(macro_def) => format!("宏 · {}", macro_def.name),
-                None => format!("宏（槽位 {slot}，本机无定义）"),
+                Some(macro_def) => tf("宏 · {}", &[&macro_def.name]),
+                None => tf("宏（槽位 {}，本机无定义）", &[&slot]),
             };
         }
         self.model.action_label(value)
@@ -635,12 +629,9 @@ impl AppUi {
                 };
                 if let Err(e) = macro_store::save(&macros, &kinds) {
                     log::warn!("cannot save commands: {e}");
-                    ui.toast("指令已写入键盘，但本机存储写入失败");
+                    ui.toast(&gettext("指令已写入键盘，但本机存储写入失败"));
                 }
-                ui.send(Request::CommitMacros {
-                    macros,
-                    layers,
-                });
+                ui.send(Request::CommitMacros { macros, layers });
             }
         };
         match self.orphan_slots().first() {
@@ -653,9 +644,9 @@ impl AppUi {
                     .join("、");
                 confirm(
                     self,
-                    "键盘上有本机没有的指令",
-                    &format!("槽位 {list} 不认识，保存会覆盖掉它们。"),
-                    "继续保存",
+                    &gettext("键盘上有本机没有的指令"),
+                    &tf("槽位 {} 不认识，保存会覆盖掉它们。", &[&list]),
+                    &gettext("继续保存"),
                     apply,
                 );
             }
@@ -721,7 +712,7 @@ impl AppUi {
     fn set_mac_layout(self: &Rc<Self>, active: bool) {
         let Some(mut layer) = self.state.borrow().keys[0].clone() else {
             self.send(Request::LoadKeys);
-            self.toast("正在读取按键…");
+            self.toast(&gettext("正在读取按键…"));
             return;
         };
         if layer.keys.len() <= 17 {
@@ -797,7 +788,11 @@ fn stored_macro_type(state: &UiState, slot: usize) -> MacroType {
             }
         }
     }
-    state.macro_types.get(slot).copied().unwrap_or(MacroType::HoldLoop)
+    state
+        .macro_types
+        .get(slot)
+        .copied()
+        .unwrap_or(MacroType::HoldLoop)
 }
 
 fn page_container(title: &str, subtitle: &str) -> (gtk::ScrolledWindow, gtk::Box) {
@@ -861,7 +856,7 @@ fn confirm(
     action: impl Fn(&Rc<AppUi>) + 'static,
 ) {
     let dialog = adw::AlertDialog::new(Some(heading), Some(body));
-    dialog.add_response("cancel", "取消");
+    dialog.add_response("cancel", &gettext("取消"));
     dialog.add_response("ok", action_label);
     dialog.set_response_appearance("ok", adw::ResponseAppearance::Destructive);
     dialog.set_close_response("cancel");
@@ -878,9 +873,9 @@ fn confirm(
 
 fn presence_text(presence: &Presence) -> String {
     match presence {
-        Presence::Available(info) => format!("已检测到 · {}", info.hidraw),
-        Presence::Denied(_) => "已检测到，但无访问权限".to_string(),
-        Presence::Absent => "未检测到".to_string(),
+        Presence::Available(info) => tf("已检测到 · {}", &[&info.hidraw]),
+        Presence::Denied(_) => gettext("已检测到，但无访问权限"),
+        Presence::Absent => gettext("未检测到"),
     }
 }
 
@@ -905,37 +900,39 @@ struct DevicePage {
 
 impl DevicePage {
     fn new(weak: &Weak<AppUi>, model: &Model) -> Self {
-        let (root, page) = page_container("设备", "查看键盘状态与当前配置。");
+        let (root, page) = page_container(&gettext("设备"), &gettext("查看键盘状态与当前配置。"));
         let details = gtk::Box::new(gtk::Orientation::Vertical, 18);
         details.set_vexpand(true);
 
-        let info = section(&details, "设备信息");
-        let model_value = value_row(&info, "型号");
-        let connection_value = value_row(&info, "连接");
-        let wired_value = value_row(&info, "USB 有线");
-        let wireless_value = value_row(&info, "2.4G 接收器");
-        let battery_row = adw::ActionRow::builder().title("电量").build();
+        let info = section(&details, &gettext("设备信息"));
+        let model_value = value_row(&info, &gettext("型号"));
+        let connection_value = value_row(&info, &gettext("连接"));
+        let wired_value = value_row(&info, &gettext("USB 有线"));
+        let wireless_value = value_row(&info, &gettext("2.4G 接收器"));
+        let battery_row = adw::ActionRow::builder().title(gettext("电量")).build();
         let battery_bar = gtk::ProgressBar::new();
         battery_bar.set_show_text(true);
         battery_bar.set_size_request(180, -1);
         battery_row.add_suffix(&battery_bar);
         info.add(&battery_row);
-        let charge_value = value_row(&info, "充电");
+        let charge_value = value_row(&info, &gettext("充电"));
 
-        let current = section(&details, "当前配置");
-        let rate_value = value_row(&current, "回报率");
-        let effect_value = value_row(&current, "灯效");
-        let sleep_value = value_row(&current, "休眠");
-        let win_value = value_row(&current, "Win 键锁");
-        let mac_value = value_row(&current, "Mac 布局");
+        let current = section(&details, &gettext("当前配置"));
+        let rate_value = value_row(&current, &gettext("回报率"));
+        let effect_value = value_row(&current, &gettext("灯效"));
+        let sleep_value = value_row(&current, &gettext("休眠"));
+        let win_value = value_row(&current, &gettext("Win 键锁"));
+        let mac_value = value_row(&current, &gettext("Mac 布局"));
 
-        let status = section(&details, "设备状态");
+        let status = section(&details, &gettext("设备状态"));
         let note = adw::ActionRow::builder()
-            .title("提示")
-            .subtitle("键盘休眠时厂商通道不会响应，按任意键唤醒后点击刷新。")
+            .title(gettext("提示"))
+            .subtitle(gettext(
+                "键盘休眠时厂商通道不会响应，按任意键唤醒后点击刷新。",
+            ))
             .build();
         status.add(&note);
-        let rescan = pill_button("刷新设备数据");
+        let rescan = pill_button(&gettext("刷新设备数据"));
         {
             let weak = weak.clone();
             rescan.connect_clicked(move |_| {
@@ -956,12 +953,12 @@ impl DevicePage {
         icon.set_pixel_size(72);
         icon.add_css_class("dim-label");
         empty.append(&icon);
-        let empty_title = gtk::Label::new(Some("正在查找设备…"));
+        let empty_title = gtk::Label::new(Some(&gettext("正在查找设备…")));
         empty_title.add_css_class("title-1");
         empty.append(&empty_title);
-        let empty_body = gtk::Label::new(Some(
+        let empty_body = gtk::Label::new(Some(&gettext(
             "请用 USB 线连接 K99 V2，或插入 2.4G 接收器，并按任意键唤醒键盘。",
-        ));
+        )));
         empty_body.add_css_class("dim-label");
         empty_body.set_wrap(true);
         empty_body.set_justify(gtk::Justification::Center);
@@ -1009,25 +1006,25 @@ impl DevicePage {
             self.stack.set_visible_child_name("empty");
             if state.searching {
                 self.local_spinner.start();
-                self.empty_title.set_text("正在查找设备…");
+                self.empty_title.set_text(&gettext("正在查找设备…"));
             } else {
                 self.local_spinner.stop();
-                self.empty_title.set_text("未检测到设备");
+                self.empty_title.set_text(&gettext("未检测到设备"));
             }
             if let Some(error) = &state.error {
                 self.empty_body.set_text(error);
             } else {
-                self.empty_body
-                    .set_text("请用 USB 线连接 K99 V2，或插入 2.4G 接收器，并按任意键唤醒键盘。");
+                self.empty_body.set_text(&gettext(
+                    "请用 USB 线连接 K99 V2，或插入 2.4G 接收器，并按任意键唤醒键盘。",
+                ));
             }
         }
 
         self.model_value.set_text(&ui.model.name);
         let connection = state
             .transport
-            .map(Transport::label)
-            .unwrap_or("—")
-            .to_string();
+            .map(|transport| gettext(transport.label()))
+            .unwrap_or_else(|| "—".to_string());
         self.connection_value.set_text(&connection);
         match &state.discovery {
             Some(discovery) => {
@@ -1046,11 +1043,12 @@ impl DevicePage {
             self.battery_bar.set_fraction(battery.level as f64 / 100.0);
             self.battery_bar
                 .set_text(Some(&format!("{}%", battery.level)));
-            self.charge_value.set_text(match (battery.charging(), battery.fully_charged()) {
-                (true, _) => "充电中",
-                (false, true) => "已充满",
-                (false, false) => "未充电",
-            });
+            self.charge_value
+                .set_text(&match (battery.charging(), battery.fully_charged()) {
+                    (true, _) => gettext("充电中"),
+                    (false, true) => gettext("已充满"),
+                    (false, false) => gettext("未充电"),
+                });
         } else {
             self.battery_bar.set_fraction(0.0);
             self.battery_bar.set_text(None);
@@ -1061,29 +1059,36 @@ impl DevicePage {
             self.rate_value.set_text(
                 &performance
                     .rate_hz()
-                    .map_or_else(|| "—".to_string(), |rate| format!("{rate} Hz")),
+                    .map_or_else(|| "—".to_string(), |rate| tf("{} Hz", &[&rate])),
             );
             let mode = performance.light_mode();
             self.effect_value.set_text(
                 &ui.model
                     .effect(mode)
                     .map(|effect| effect.name.clone())
-                    .unwrap_or_else(|| format!("模式 {mode}")),
+                    .unwrap_or_else(|| tf("模式 {}", &[&mode])),
             );
             let minutes = performance.sleep_minutes();
             self.sleep_value.set_text(&if minutes == 0 {
-                "从不".to_string()
+                gettext("从不")
             } else {
-                format!("{minutes} 分钟")
+                tf("{} 分钟", &[&minutes])
             });
-            self.win_value.set_text(if performance.win_lock() {
-                "开启"
-            } else {
-                "关闭"
-            });
+            self.win_value.set_text(
+                &(if performance.win_lock() {
+                    gettext("开启")
+                } else {
+                    gettext("关闭")
+                }),
+            );
             let mac_layout = ui.state.borrow().mac_layout;
-            self.mac_value
-                .set_text(if mac_layout { "开启" } else { "关闭" });
+            self.mac_value.set_text(
+                &(if mac_layout {
+                    gettext("开启")
+                } else {
+                    gettext("关闭")
+                }),
+            );
         } else {
             for label in [
                 &self.rate_value,
@@ -1116,19 +1121,21 @@ struct KeysPage {
 impl KeysPage {
     fn new(weak: &Weak<AppUi>, model: &Model) -> Self {
         let (root, content) = page_container(
-            "按键",
-            "点击键盘上的按键，然后为当前图层指定功能。修改会立即写入键盘。",
+            &gettext("按键"),
+            &gettext("点击键盘上的按键，然后为当前图层指定功能。修改会立即写入键盘。"),
         );
 
-        let layer_group = section(&content, "图层");
+        let layer_group = section(&content, &gettext("图层"));
         let layer_combo = adw::ComboRow::new();
-        layer_combo.set_title("当前图层");
-        let layers = gtk::StringList::new(&["默认层", "Fn 层", "Fn2 层"]);
+        layer_combo.set_title(&gettext("当前图层"));
+        let layer_names = [gettext("默认层"), gettext("Fn 层"), gettext("Fn2 层")];
+        let layers =
+            gtk::StringList::new(&layer_names.iter().map(String::as_str).collect::<Vec<_>>());
         layer_combo.set_model(Some(&layers));
         layer_combo.set_selected(0);
         layer_group.add(&layer_combo);
 
-        let reset_layer_btn = pill_button("恢复本层默认");
+        let reset_layer_btn = pill_button(&gettext("恢复本层默认"));
         {
             let weak = weak.clone();
             reset_layer_btn.connect_clicked(move |_| {
@@ -1136,9 +1143,9 @@ impl KeysPage {
                     let layer = ui.state.borrow().layer;
                     confirm(
                         &ui,
-                        "恢复本层默认？",
-                        "当前图层的全部按键会恢复为出厂设置。",
-                        "恢复",
+                        &gettext("恢复本层默认？"),
+                        &gettext("当前图层的全部按键会恢复为出厂设置。"),
+                        &gettext("恢复"),
                         move |ui| ui.send(Request::ResetKeys(layer)),
                     );
                 }
@@ -1146,7 +1153,7 @@ impl KeysPage {
         }
         layer_group.add(&reset_layer_btn);
 
-        let keyboard_group = section(&content, "键盘");
+        let keyboard_group = section(&content, &gettext("键盘"));
         let keyboard = KeyboardView::new(model, {
             let weak = weak.clone();
             move |matrix| {
@@ -1161,13 +1168,15 @@ impl KeysPage {
         keyboard.frame.set_margin_end(6);
         keyboard_group.add(&keyboard.frame);
 
-        let hint = gtk::Label::new(Some("点击按键进行编辑。"));
+        let hint = gtk::Label::new(Some(&gettext("点击按键进行编辑。")));
         hint.add_css_class("dim-label");
         hint.set_xalign(0.0);
         keyboard_group.add(&hint);
 
-        let macro_group = section(&content, "快捷指令");
-        macro_group.set_description(Some("点一条可编辑或删除；在「更改功能」的指令页分配给按键。"));
+        let macro_group = section(&content, &gettext("快捷指令"));
+        macro_group.set_description(Some(&gettext(
+            "点一条可编辑或删除；在「更改功能」的指令页分配给按键。",
+        )));
         let macro_list = gtk::ListBox::new();
         macro_list.add_css_class("boxed-list");
         macro_list.set_selection_mode(gtk::SelectionMode::None);
@@ -1182,7 +1191,7 @@ impl KeysPage {
                 }
             });
         }
-        let record_btn = pill_button("录制新指令…");
+        let record_btn = pill_button(&gettext("录制新指令…"));
         {
             let weak = weak.clone();
             record_btn.connect_clicked(move |_| {
@@ -1193,14 +1202,14 @@ impl KeysPage {
         }
         macro_group.add(&record_btn);
 
-        let selected_group = section(&content, "当前按键");
+        let selected_group = section(&content, &gettext("当前按键"));
         let key_row = adw::ActionRow::builder()
-            .title("未选择按键")
-            .subtitle("点击上方键盘选择")
+            .title(gettext("未选择按键"))
+            .subtitle(gettext("点击上方键盘选择"))
             .build();
         selected_group.add(&key_row);
         let action_row = adw::ActionRow::builder()
-            .title("当前功能")
+            .title(gettext("当前功能"))
             .subtitle("—")
             .build();
         selected_group.add(&action_row);
@@ -1210,9 +1219,9 @@ impl KeysPage {
         actions.set_margin_bottom(8);
         actions.set_margin_start(6);
         actions.set_margin_end(6);
-        let change_btn = gtk::Button::with_label("更改功能…");
+        let change_btn = gtk::Button::with_label(&gettext("更改功能…"));
         change_btn.add_css_class("suggested-action");
-        let reset_key_btn = gtk::Button::with_label("恢复此键");
+        let reset_key_btn = gtk::Button::with_label(&gettext("恢复此键"));
         actions.append(&change_btn);
         actions.append(&reset_key_btn);
         selected_group.add(&actions);
@@ -1279,16 +1288,16 @@ impl KeysPage {
         }
         let orphans = ui.orphan_slots();
         let description = if orphans.is_empty() {
-            "点一条可编辑或删除；在「更改功能」的指令页分配给按键。"
+            gettext("点一条可编辑或删除；在「更改功能」的指令页分配给按键。")
         } else {
-            "键盘上还有本机没有的指令槽，保存会覆盖它们。"
+            gettext("键盘上还有本机没有的指令槽，保存会覆盖它们。")
         };
-        self.macro_group.set_description(Some(description));
+        self.macro_group.set_description(Some(description.as_str()));
         let macros = ui.state.borrow().macros.clone();
         if macros.is_empty() {
             let empty = adw::ActionRow::builder()
-                .title("还没有快捷指令")
-                .subtitle("录制一条后可分配到按键。")
+                .title(gettext("还没有快捷指令"))
+                .subtitle(gettext("录制一条后可分配到按键。"))
                 .build();
             empty.set_activatable(false);
             self.macro_list.append(&empty);
@@ -1296,14 +1305,17 @@ impl KeysPage {
         }
         for (slot, macro_def) in macros.iter().enumerate() {
             let kind = ui.macro_type(slot);
-            let subtitle = format!("{} · {} 个节点", kind.label(), macro_def.event_count());
+            let subtitle = tf(
+                "{} · {} 个节点",
+                &[&gettext(kind.label()), &macro_def.event_count()],
+            );
             let row = adw::ActionRow::builder()
                 .title(macro_def.name.as_str())
                 .subtitle(subtitle.as_str())
                 .build();
             row.set_activatable(true);
             let drop = gtk::Button::from_icon_name("user-trash-symbolic");
-            drop.set_tooltip_text(Some("删除"));
+            drop.set_tooltip_text(Some(&gettext("删除")));
             drop.set_valign(gtk::Align::Center);
             drop.add_css_class("flat");
             {
@@ -1315,9 +1327,9 @@ impl KeysPage {
                     };
                     confirm(
                         &holder,
-                        &format!("删除「{name}」？"),
-                        "引用这条指令的按键会变成禁用。",
-                        "删除",
+                        &tf("删除「{}」？", &[&name]),
+                        &gettext("引用这条指令的按键会变成禁用。"),
+                        &gettext("删除"),
                         move |ui| ui.delete_macro(slot),
                     );
                 });
@@ -1342,13 +1354,15 @@ impl KeysPage {
         if let Some(keys) = &keys {
             self.keyboard.set_layer(&ui.model, layer, keys);
             self.keyboard.set_selected(selected);
-            self.hint.set_text("点击按键进行编辑。");
+            self.hint.set_text(&gettext("点击按键进行编辑。"));
         } else {
-            self.hint.set_text(if connected {
-                "正在读取按键…"
-            } else {
-                "设备未连接。"
-            });
+            self.hint.set_text(
+                &(if connected {
+                    gettext("正在读取按键…")
+                } else {
+                    gettext("设备未连接。")
+                }),
+            );
         }
 
         self.rebuild_macro_rows(ui);
@@ -1367,10 +1381,10 @@ impl KeysPage {
                 .map(|key| key.name.clone())
                 .unwrap_or_else(|| format!("#{matrix}"));
             self.key_row.set_title(&key_name);
-            self.key_row.set_subtitle(match layer {
-                0 => "默认层",
-                1 => "Fn 层",
-                _ => "Fn2 层",
+            self.key_row.set_subtitle(&match layer {
+                0 => gettext("默认层"),
+                1 => gettext("Fn 层"),
+                _ => gettext("Fn2 层"),
             });
             if let (Some(keys), true) = (&keys, available) {
                 let value = keys.keys.get(matrix).copied().unwrap_or([0; 4]);
@@ -1379,8 +1393,8 @@ impl KeysPage {
                 self.action_row.set_subtitle("—");
             }
         } else {
-            self.key_row.set_title("未选择按键");
-            self.key_row.set_subtitle("点击上方键盘选择");
+            self.key_row.set_title(&gettext("未选择按键"));
+            self.key_row.set_subtitle(&gettext("点击上方键盘选择"));
             self.action_row.set_subtitle("—");
         }
     }
@@ -1409,11 +1423,11 @@ struct LightingPage {
 impl LightingPage {
     fn new(weak: &Weak<AppUi>, model: &Model) -> Self {
         let (root, content) = page_container(
-            "灯效",
-            "选择灯效并调整颜色、亮度与速度。修改会立即写入键盘。",
+            &gettext("灯效"),
+            &gettext("选择灯效并调整颜色、亮度与速度。修改会立即写入键盘。"),
         );
 
-        let effects_group = section(&content, "灯效");
+        let effects_group = section(&content, &gettext("灯效"));
         let effect_list = gtk::ListBox::new();
         effect_list.set_selection_mode(gtk::SelectionMode::None);
         effect_list.add_css_class("boxed-list");
@@ -1463,15 +1477,15 @@ impl LightingPage {
         }
         effects_group.add(&effect_list);
 
-        let params = section(&content, "参数");
-        let brightness_row = adw::ActionRow::builder().title("亮度").build();
+        let params = section(&content, &gettext("参数"));
+        let brightness_row = adw::ActionRow::builder().title(gettext("亮度")).build();
         let brightness = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 5.0, 1.0);
         brightness.set_draw_value(true);
         brightness.set_size_request(220, -1);
         brightness_row.add_suffix(&brightness);
         params.add(&brightness_row);
 
-        let speed_row = adw::ActionRow::builder().title("速度").build();
+        let speed_row = adw::ActionRow::builder().title(gettext("速度")).build();
         let speed = gtk::Scale::with_range(gtk::Orientation::Horizontal, 1.0, 5.0, 1.0);
         speed.set_draw_value(true);
         speed.set_size_request(220, -1);
@@ -1479,12 +1493,12 @@ impl LightingPage {
         params.add(&speed_row);
 
         let multi_row = adw::SwitchRow::builder()
-            .title("多彩")
-            .subtitle("使用多彩渐变")
+            .title(gettext("多彩"))
+            .subtitle(gettext("使用多彩渐变"))
             .build();
         params.add(&multi_row);
 
-        let color_row = adw::ActionRow::builder().title("颜色").build();
+        let color_row = adw::ActionRow::builder().title(gettext("颜色")).build();
         let color = gtk::ColorDialogButton::new(Some(gtk::ColorDialog::new()));
         color.set_valign(gtk::Align::Center);
         color_row.add_suffix(&color);
@@ -1496,7 +1510,7 @@ impl LightingPage {
         note.set_xalign(0.0);
         content.append(&note);
 
-        let diy_group = section(&content, "逐键颜色");
+        let diy_group = section(&content, &gettext("逐键颜色"));
         let diy_keyboard = KeyboardView::new(model, {
             let weak = weak.clone();
             move |matrix| {
@@ -1523,7 +1537,7 @@ impl LightingPage {
             let swatch = gtk::Button::new();
             swatch.add_css_class("diy-swatch");
             swatch.add_css_class(&format!("diy-{index}"));
-            swatch.set_tooltip_text(Some(name));
+            swatch.set_tooltip_text(Some(&gettext(*name)));
             if index == 0 {
                 swatch.add_css_class("diy-selected");
             }
@@ -1547,7 +1561,7 @@ impl LightingPage {
         }
         let diy_custom = gtk::ColorDialogButton::new(Some(gtk::ColorDialog::new()));
         diy_custom.set_valign(gtk::Align::Center);
-        diy_custom.set_tooltip_text(Some("自定义颜色"));
+        diy_custom.set_tooltip_text(Some(&gettext("自定义颜色")));
         let custom_index = diy_index.clone();
         let custom_swatches = diy_swatches.clone();
         diy_custom.connect_rgba_notify(move |_| {
@@ -1560,17 +1574,17 @@ impl LightingPage {
         diy_group.add(&palette);
         diy_group.set_visible(false);
 
-        let reset_group = section(&content, "恢复");
-        let reset = pill_button("恢复灯效颜色默认值");
+        let reset_group = section(&content, &gettext("恢复"));
+        let reset = pill_button(&gettext("恢复灯效颜色默认值"));
         {
             let weak = weak.clone();
             reset.connect_clicked(move |_| {
                 if let Some(ui) = weak.upgrade() {
                     confirm(
                         &ui,
-                        "恢复灯效颜色？",
-                        "所有灯效模式的颜色会恢复为出厂设置。",
-                        "恢复",
+                        &gettext("恢复灯效颜色？"),
+                        &gettext("所有灯效模式的颜色会恢复为出厂设置。"),
+                        &gettext("恢复"),
                         |ui| ui.send(Request::ResetLight),
                     );
                 }
@@ -1741,16 +1755,18 @@ impl LightingPage {
         self.color_row.set_sensitive(enabled && color);
         if !enabled {
             if mode == 0 {
-                self.note.set_text("灯效已关闭。");
+                self.note.set_text(&gettext("灯效已关闭。"));
             } else {
                 self.note
-                    .set_text(&format!("当前灯效（{mode}）不在支持列表中。"));
+                    .set_text(&tf("当前灯效（{}）不在支持列表中。", &[&mode]));
             }
         } else if mode == DIY_MODE {
-            self.note
-                .set_text("自定义灯效：点击下方键盘为单个按键上色，再次点击取消。");
+            self.note.set_text(&gettext(
+                "自定义灯效：点击下方键盘为单个按键上色，再次点击取消。",
+            ));
         } else if !color && !brightness && !speed && !multi {
-            self.note.set_text("该灯效为动态效果，不提供参数调节。");
+            self.note
+                .set_text(&gettext("该灯效为动态效果，不提供参数调节。"));
         } else {
             self.note.set_text("");
         }
@@ -1783,11 +1799,13 @@ impl LightingPage {
             self.speed_row.set_sensitive(false);
             self.multi_row.set_sensitive(false);
             self.color_row.set_sensitive(false);
-            self.note.set_text(if connected {
-                "等待设备数据…"
-            } else {
-                "设备未连接。"
-            });
+            self.note.set_text(
+                &(if connected {
+                    gettext("等待设备数据…")
+                } else {
+                    gettext("设备未连接。")
+                }),
+            );
             self.note.set_visible(true);
             self.updating.set(false);
         }
@@ -1806,41 +1824,44 @@ struct PerformancePage {
 
 impl PerformancePage {
     fn new(weak: &Weak<AppUi>) -> Self {
-        let (root, content) = page_container("性能", "调整回报率、低延迟、休眠与系统键。");
+        let (root, content) = page_container(
+            &gettext("性能"),
+            &gettext("调整回报率、低延迟、休眠与系统键。"),
+        );
 
-        let group = section(&content, "键盘性能");
+        let group = section(&content, &gettext("键盘性能"));
         let rate = adw::ComboRow::new();
-        rate.set_title("回报率");
-        rate.set_subtitle("更高的回报率可以降低输入延迟");
+        rate.set_title(&gettext("回报率"));
+        rate.set_subtitle(&gettext("更高的回报率可以降低输入延迟"));
         let rates = gtk::StringList::new(&["250 Hz", "500 Hz", "1000 Hz"]);
         rate.set_model(Some(&rates));
         group.add(&rate);
 
         let latency = adw::SwitchRow::builder()
-            .title("低延迟模式")
-            .subtitle("优先降低按键延迟，可能增加功耗")
+            .title(gettext("低延迟模式"))
+            .subtitle(gettext("优先降低按键延迟，可能增加功耗"))
             .build();
         group.add(&latency);
 
         let sleep = adw::SpinRow::with_range(0.0, 30.0, 1.0);
-        sleep.set_title("休眠时间");
-        sleep.set_subtitle("分钟；0 表示从不休眠");
+        sleep.set_title(&gettext("休眠时间"));
+        sleep.set_subtitle(&gettext("分钟；0 表示从不休眠"));
         group.add(&sleep);
 
         let win_lock = adw::SwitchRow::builder()
-            .title("Win 键锁")
-            .subtitle("锁定 Windows 键，避免游戏中误触")
+            .title(gettext("Win 键锁"))
+            .subtitle(gettext("锁定 Windows 键，避免游戏中误触"))
             .build();
         group.add(&win_lock);
 
         let mac = adw::SwitchRow::builder()
-            .title("Mac 布局")
-            .subtitle("软件交换 Alt/Win；固件切换用 Fn+A / Fn+S")
+            .title(gettext("Mac 布局"))
+            .subtitle(gettext("软件交换 Alt/Win；固件切换用 Fn+A / Fn+S"))
             .build();
         group.add(&mac);
 
-        let reset_group = section(&content, "恢复");
-        let reset_btn = pill_button("恢复性能默认值");
+        let reset_group = section(&content, &gettext("恢复"));
+        let reset_btn = pill_button(&gettext("恢复性能默认值"));
         reset_btn.add_css_class("destructive-action");
         {
             let weak = weak.clone();
@@ -1848,9 +1869,9 @@ impl PerformancePage {
                 if let Some(ui) = weak.upgrade() {
                     confirm(
                         &ui,
-                        "恢复性能默认值？",
-                        "回报率、低延迟、休眠和系统键设置会恢复为出厂设置。",
-                        "恢复",
+                        &gettext("恢复性能默认值？"),
+                        &gettext("回报率、低延迟、休眠和系统键设置会恢复为出厂设置。"),
+                        &gettext("恢复"),
                         |ui| ui.send(Request::ResetPerformance),
                     );
                 }
@@ -1996,37 +2017,42 @@ struct SettingsPage {
 
 impl SettingsPage {
     fn new(weak: &Weak<AppUi>, model: &Model) -> Self {
-        let (root, content) = page_container("设置", "支持范围、权限与应用信息。");
+        let (root, content) =
+            page_container(&gettext("设置"), &gettext("支持范围、权限与应用信息。"));
 
-        let support = section(&content, "支持范围");
-        let model_value = value_row(&support, "型号");
-        model_value.set_text(&format!("{}（USB 有线 / 2.4G 无线）", model.name));
+        let support = section(&content, &gettext("支持范围"));
+        let model_value = value_row(&support, &gettext("型号"));
+        model_value.set_text(&tf("{}（USB 有线 / 2.4G 无线）", &[&model.name]));
         let detail = adw::ActionRow::builder()
-            .title("当前版本支持")
-            .subtitle("K99 V2 的设置项；固件刷写、云端配置和音频驱动不在支持范围内。")
+            .title(gettext("当前版本支持"))
+            .subtitle(gettext(
+                "K99 V2 的设置项；固件刷写、云端配置和音频驱动不在支持范围内。",
+            ))
             .build();
         detail.set_subtitle_lines(3);
         support.add(&detail);
 
-        let simulate = section(&content, "运行状态");
-        let simulate_value = value_row(&simulate, "模拟设备");
+        let simulate = section(&content, &gettext("运行状态"));
+        let simulate_value = value_row(&simulate, &gettext("模拟设备"));
 
-        let permissions = section(&content, "HID 权限");
+        let permissions = section(&content, &gettext("HID 权限"));
         let explain = adw::ActionRow::builder()
-            .title("权限不足时")
-            .subtitle("读取设备提示无权限时，请安装以下 udev 规则并重新插拔键盘。")
+            .title(gettext("权限不足时"))
+            .subtitle(gettext(
+                "读取设备提示无权限时，请安装以下 udev 规则并重新插拔键盘。",
+            ))
             .build();
         explain.set_subtitle_lines(2);
         permissions.add(&explain);
 
         let rule_row = adw::ActionRow::builder()
-            .title("udev 规则")
+            .title(gettext("udev 规则"))
             .subtitle(UDEV_RULE)
             .build();
         rule_row.set_subtitle_lines(2);
         rule_row.add_css_class("udev-rule");
         let copy = gtk::Button::from_icon_name("mchose-copy-symbolic");
-        copy.set_tooltip_text(Some("复制 udev 规则"));
+        copy.set_tooltip_text(Some(&gettext("复制 udev 规则")));
         copy.set_valign(gtk::Align::Center);
         copy.add_css_class("flat");
         {
@@ -2034,26 +2060,33 @@ impl SettingsPage {
             copy.connect_clicked(move |_| {
                 if let Some(ui) = weak.upgrade() {
                     ui.window.clipboard().set_text(UDEV_RULE);
-                    ui.toast("已复制 udev 规则");
+                    ui.toast(&gettext("已复制 udev 规则"));
                 }
             });
         }
         rule_row.add_suffix(&copy);
         permissions.add(&rule_row);
 
-        let about = section(&content, "关于");
+        let about = section(&content, &gettext("关于"));
         let version = adw::ActionRow::builder()
-            .title("版本")
+            .title(gettext("版本"))
             .subtitle(crate::config::VERSION)
             .build();
         about.add(&version);
+        let repo = adw::ActionRow::builder().title(gettext("源码仓库")).build();
+        let repo_link = gtk::LinkButton::new(crate::config::REPO_URL);
+        repo_link.add_css_class("dim-label");
+        repo.add_suffix(&repo_link);
+        about.add(&repo);
         let disclaimer = adw::ActionRow::builder()
-            .title("非官方项目")
-            .subtitle("本项目与迈从科技无隶属关系，协议为兼容设备而实现。")
+            .title(gettext("非官方项目"))
+            .subtitle(gettext(
+                "本项目与迈从科技无隶属关系，协议为兼容设备而实现。",
+            ))
             .build();
         disclaimer.set_subtitle_lines(2);
         about.add(&disclaimer);
-        let about_btn = pill_button("关于 MCHOSE HUB");
+        let about_btn = pill_button(&gettext("关于 MCHOSE HUB"));
         {
             let weak = weak.clone();
             about_btn.connect_clicked(move |_| {
@@ -2072,12 +2105,13 @@ impl SettingsPage {
 
     fn update(&self, ui: &AppUi) {
         let state = ui.state.borrow();
-        self.simulate_value
-            .set_text(if state.transport == Some(Transport::Simulated) {
-                "是"
+        self.simulate_value.set_text(
+            &(if state.transport == Some(Transport::Simulated) {
+                gettext("是")
             } else {
-                "否"
-            });
+                gettext("否")
+            }),
+        );
     }
 }
 
@@ -2157,7 +2191,7 @@ fn picker_tab(stack: &gtk::Stack, id: &str, title: &str, child: &impl IsA<gtk::W
 
 fn open_action_picker(ui: &Rc<AppUi>, matrix: usize, current: [u8; 4]) {
     let dialog = adw::Dialog::builder()
-        .title("选择功能")
+        .title(gettext("选择功能"))
         .content_width(760)
         .build();
 
@@ -2169,7 +2203,7 @@ fn open_action_picker(ui: &Rc<AppUi>, matrix: usize, current: [u8; 4]) {
     content.set_valign(gtk::Align::Start);
 
     let search = gtk::SearchEntry::new();
-    search.set_placeholder_text(Some("搜索功能…"));
+    search.set_placeholder_text(Some(&gettext("搜索功能…")));
     content.append(&search);
 
     let stack = gtk::Stack::new();
@@ -2182,13 +2216,17 @@ fn open_action_picker(ui: &Rc<AppUi>, matrix: usize, current: [u8; 4]) {
     let mut flows = Vec::new();
 
     let categories: [(&str, &str, &Vec<crate::model::ActionItem>); 4] = [
-        ("basic", "键盘", &ui.model.actions.basic),
-        ("mouse", "鼠标", &ui.model.actions.mouse),
-        ("media", "媒体", &ui.model.actions.media),
-        ("system", "快捷", &ui.model.actions.system),
+        ("basic", msgid("键盘"), &ui.model.actions.basic),
+        ("mouse", msgid("鼠标"), &ui.model.actions.mouse),
+        ("media", msgid("媒体"), &ui.model.actions.media),
+        ("system", msgid("快捷"), &ui.model.actions.system),
     ];
     for (id, title, actions) in categories {
-        let labels: Vec<String> = actions.iter().map(|action| action.label.clone()).collect();
+        let title = gettext(title);
+        let labels: Vec<String> = actions
+            .iter()
+            .map(|action| gettext(&action.label))
+            .collect();
         let values: Vec<[u8; 4]> = actions.iter().map(|action| action.value).collect();
         let flow = button_flow(
             &labels,
@@ -2206,7 +2244,7 @@ fn open_action_picker(ui: &Rc<AppUi>, matrix: usize, current: [u8; 4]) {
             },
         );
         flows.push(flow.clone());
-        picker_tab(&stack, id, title, &flow);
+        picker_tab(&stack, id, &title, &flow);
     }
     content.append(&stack);
     connect_search(&search, &query, &flows);
@@ -2218,14 +2256,17 @@ fn open_action_picker(ui: &Rc<AppUi>, matrix: usize, current: [u8; 4]) {
     let macros = ui.state.borrow().macros.clone();
     if macros.is_empty() {
         let empty = adw::ActionRow::builder()
-            .title("还没有快捷指令")
-            .subtitle("先在按键页的「快捷指令」里录制一条。")
+            .title(gettext("还没有快捷指令"))
+            .subtitle(gettext("先在按键页的「快捷指令」里录制一条。"))
             .build();
         macro_box.append(&empty);
     }
     for (slot, macro_def) in macros.iter().enumerate() {
         let kind = ui.macro_type(slot);
-        let subtitle = format!("{} · {} 个按键", kind.label(), macro_def.event_count());
+        let subtitle = tf(
+            "{} · {} 个按键",
+            &[&gettext(kind.label()), &macro_def.event_count()],
+        );
         let row = adw::ActionRow::builder()
             .title(macro_def.name.as_str())
             .subtitle(subtitle.as_str())
@@ -2253,13 +2294,15 @@ fn open_action_picker(ui: &Rc<AppUi>, matrix: usize, current: [u8; 4]) {
     let macro_page = gtk::Box::new(gtk::Orientation::Vertical, 6);
     macro_page.set_valign(gtk::Align::Start);
     macro_page.append(&macro_box);
-    let macro_note = gtk::Label::new(Some("点击指令即分配到该按键；编辑请到按键页的「快捷指令」。"));
+    let macro_note = gtk::Label::new(Some(&gettext(
+        "点击指令即分配到该按键；编辑请到按键页的「快捷指令」。",
+    )));
     macro_note.add_css_class("dim-label");
     macro_note.add_css_class("caption");
     macro_note.set_xalign(0.0);
     macro_note.set_wrap(true);
     macro_page.append(&macro_note);
-    picker_tab(&stack, "macro", "指令", &macro_page);
+    picker_tab(&stack, "macro", &gettext("指令"), &macro_page);
 
     let search_for_stack = search.clone();
     stack.connect_visible_child_name_notify(move |stack| {
@@ -2270,7 +2313,7 @@ fn open_action_picker(ui: &Rc<AppUi>, matrix: usize, current: [u8; 4]) {
     let footer = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     footer.set_halign(gtk::Align::End);
     footer.set_margin_top(8);
-    let disable = gtk::Button::with_label("设为禁用");
+    let disable = gtk::Button::with_label(&gettext("设为禁用"));
     if current == [0, 0, 0, 0] {
         disable.add_css_class("suggested-action");
     }
@@ -2282,7 +2325,7 @@ fn open_action_picker(ui: &Rc<AppUi>, matrix: usize, current: [u8; 4]) {
             dialog.close();
         });
     }
-    let cancel = gtk::Button::with_label("取消");
+    let cancel = gtk::Button::with_label(&gettext("取消"));
     {
         let dialog = dialog.clone();
         cancel.connect_clicked(move |_| {

@@ -1,11 +1,13 @@
+use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write as _};
 use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use thiserror::Error;
+use gettextrs::gettext;
 
+use crate::i18n::{msgid, tf};
 use crate::model::Model;
 use crate::protocol::{REPORT_ID, WIRED_BUFFER_LEN, WIRED_REPORT_LEN};
 
@@ -19,9 +21,9 @@ pub enum Transport {
 impl Transport {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Wireless => "2.4G 无线接收器",
-            Self::Wired => "USB 有线",
-            Self::Simulated => "模拟设备",
+            Self::Wireless => msgid("2.4G 无线接收器"),
+            Self::Wired => msgid("USB 有线"),
+            Self::Simulated => msgid("模拟设备"),
         }
     }
 }
@@ -36,22 +38,62 @@ pub struct DeviceInfo {
     pub transport: Transport,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug)]
 pub enum DeviceError {
-    #[error("未检测到 MCHOSE K99（USB 有线或 2.4G 接收器）")]
     NotFound,
-    #[error("无权访问 {path}。请安装 udev 规则或把用户加入 input/plugdev 组。")]
     Permission { path: PathBuf },
-    #[error("HID 读写失败：{0}")]
-    Io(#[from] io::Error),
-    #[error("设备协议错误：{0}")]
-    Protocol(#[from] crate::protocol::ProtocolError),
-    #[error("设备无响应")]
+    Io(io::Error),
+    Protocol(crate::protocol::ProtocolError),
     Timeout,
-    #[error("{0}")]
-    Verify(&'static str),
-    #[error("{0}")]
-    Macro(#[from] crate::macro_table::MacroError),
+    Verify(String),
+    Macro(crate::macro_table::MacroError),
+}
+
+impl fmt::Display for DeviceError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            Self::NotFound => gettext("未检测到 MCHOSE K99（USB 有线或 2.4G 接收器）"),
+            Self::Permission { path } => tf(
+                "无权访问 {}。请安装 udev 规则或把用户加入 input/plugdev 组。",
+                &[&path.display()],
+            ),
+            Self::Io(error) => tf("HID 读写失败：{}", &[error]),
+            Self::Protocol(error) => tf("设备协议错误：{}", &[error]),
+            Self::Timeout => gettext("设备无响应，键盘可能已休眠；按任意键唤醒后点击刷新"),
+            Self::Verify(message) => message.clone(),
+            Self::Macro(error) => error.to_string(),
+        };
+        f.write_str(&text)
+    }
+}
+
+impl std::error::Error for DeviceError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Io(error) => Some(error),
+            Self::Protocol(error) => Some(error),
+            Self::Macro(error) => Some(error),
+            _ => None,
+        }
+    }
+}
+
+impl From<io::Error> for DeviceError {
+    fn from(error: io::Error) -> Self {
+        Self::Io(error)
+    }
+}
+
+impl From<crate::protocol::ProtocolError> for DeviceError {
+    fn from(error: crate::protocol::ProtocolError) -> Self {
+        Self::Protocol(error)
+    }
+}
+
+impl From<crate::macro_table::MacroError> for DeviceError {
+    fn from(error: crate::macro_table::MacroError) -> Self {
+        Self::Macro(error)
+    }
 }
 
 // _IOWR('H', 0x07, 520) / _IOWR('H', 0x06, 520): feature payload plus report ID.

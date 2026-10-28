@@ -4,6 +4,9 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
+use gettextrs::gettext;
+
+use crate::i18n::{msgid, tf};
 use crate::macro_table::MacroDef;
 use crate::model::Model;
 use crate::protocol::{Battery, DiyLight, KeyLayer, LightState, Performance};
@@ -12,7 +15,7 @@ use super::hidraw::{DeviceError, Transport};
 use super::link::{discover, open_detected, Discovery, KeyboardLink, WiredLink};
 use super::mock::MockLink;
 
-const SLEEP_HINT: &str = "键盘未响应（2.4G 休眠），按任意键唤醒后点击刷新";
+const SLEEP_HINT: &str = msgid("键盘未响应（2.4G 休眠），按任意键唤醒后点击刷新");
 
 // Messages are short-lived; boxing the large variants would only add noise.
 #[allow(clippy::large_enum_variant)]
@@ -26,7 +29,7 @@ pub enum Event {
     Light(LightState),
     Keys(u8, KeyLayer),
     Diy(DiyLight),
-    Saved(&'static str),
+    Saved(String),
     Healthy,
     Error(String),
     Busy(bool, String),
@@ -140,21 +143,21 @@ fn read_all(
     match link.read_battery() {
         Ok(battery) => emit(tx, Event::Battery(battery)),
         Err(e) => {
-            emit_error(tx, last_error, format!("读取电量失败：{e}"));
+            emit_error(tx, last_error, tf("读取电量失败：{}", &[&e]));
             ok = false;
         }
     }
     match link.read_performance() {
         Ok(performance) => emit(tx, Event::Performance(performance)),
         Err(e) => {
-            emit_error(tx, last_error, format!("读取性能设置失败：{e}"));
+            emit_error(tx, last_error, tf("读取性能设置失败：{}", &[&e]));
             ok = false;
         }
     }
     match link.read_light() {
         Ok(light) => emit(tx, Event::Light(light)),
         Err(e) => {
-            emit_error(tx, last_error, format!("读取灯效失败：{e}"));
+            emit_error(tx, last_error, tf("读取灯效失败：{}", &[&e]));
             ok = false;
         }
     }
@@ -180,10 +183,10 @@ fn announce_link(
     if !link.probe() {
         log::warn!("device silent on {}; assume asleep", info.transport.label());
         emit(tx, Event::Busy(false, String::new()));
-        emit(tx, Event::Error(SLEEP_HINT.to_string()));
+        emit(tx, Event::Error(gettext(SLEEP_HINT)));
         return false;
     }
-    emit(tx, Event::Busy(true, "正在读取设备…".to_string()));
+    emit(tx, Event::Busy(true, gettext("正在读取设备…")));
     if read_all(link, tx, last_error) {
         emit(tx, Event::Healthy);
     }
@@ -228,7 +231,7 @@ fn handle_request(
 ) -> bool {
     if *sleeping {
         if !link.probe() {
-            emit(tx, Event::Error(SLEEP_HINT.to_string()));
+            emit(tx, Event::Error(gettext(SLEEP_HINT)));
             return true;
         }
         *sleeping = false;
@@ -236,7 +239,7 @@ fn handle_request(
     let result = match request {
         Request::Shutdown => return false,
         Request::Refresh => {
-            emit(tx, Event::Busy(true, "正在刷新…".to_string()));
+            emit(tx, Event::Busy(true, gettext("正在刷新…")));
             let ok = read_all(link.as_mut(), tx, last_error);
             emit(tx, Event::Busy(false, String::new()));
             if ok {
@@ -255,7 +258,7 @@ fn handle_request(
             }
         },
         Request::LoadKeys => {
-            emit(tx, Event::Busy(true, "正在读取按键…".to_string()));
+            emit(tx, Event::Busy(true, gettext("正在读取按键…")));
             let mut result = Ok(());
             for layer in 0..3u8 {
                 match link.read_keys(layer) {
@@ -270,7 +273,7 @@ fn handle_request(
             result
         }
         Request::LoadDiy => {
-            emit(tx, Event::Busy(true, "正在读取逐键灯效…".to_string()));
+            emit(tx, Event::Busy(true, gettext("正在读取逐键灯效…")));
             let result = match link.read_diy() {
                 Ok(diy) => {
                     emit(tx, Event::Diy(diy));
@@ -282,50 +285,50 @@ fn handle_request(
             result
         }
         Request::SetDiy(diy) => {
-            emit(tx, Event::Busy(true, "正在保存逐键灯效…".to_string()));
+            emit(tx, Event::Busy(true, gettext("正在保存逐键灯效…")));
             let result = link.write_diy(&diy);
             if result.is_ok() {
                 emit(tx, Event::Diy(diy));
-                emit(tx, Event::Saved("逐键灯效已保存"));
+                emit(tx, Event::Saved(gettext("逐键灯效已保存")));
             }
             emit(tx, Event::Busy(false, String::new()));
             result
         }
         Request::SetPerformance(performance) => {
-            emit(tx, Event::Busy(true, "正在保存性能设置…".to_string()));
+            emit(tx, Event::Busy(true, gettext("正在保存性能设置…")));
             let result = link.write_performance(&performance);
             if result.is_ok() {
                 emit(tx, Event::Performance(performance));
-                emit(tx, Event::Saved("性能设置已保存"));
+                emit(tx, Event::Saved(gettext("性能设置已保存")));
             }
             emit(tx, Event::Busy(false, String::new()));
             result
         }
         Request::SetKeys { layer, keys } => {
-            emit(tx, Event::Busy(true, "正在保存按键…".to_string()));
+            emit(tx, Event::Busy(true, gettext("正在保存按键…")));
             let result = link.write_keys(layer, &keys);
             if result.is_ok() {
                 emit(tx, Event::Keys(layer, keys));
-                emit(tx, Event::Saved("按键已保存"));
+                emit(tx, Event::Saved(gettext("按键已保存")));
             }
             emit(tx, Event::Busy(false, String::new()));
             result
         }
         Request::SetLighting(performance, light) => {
-            emit(tx, Event::Busy(true, "正在保存灯效…".to_string()));
+            emit(tx, Event::Busy(true, gettext("正在保存灯效…")));
             let result = link
                 .write_performance(&performance)
                 .and_then(|_| link.write_light(&light));
             if result.is_ok() {
                 emit(tx, Event::Performance(performance));
                 emit(tx, Event::Light(light));
-                emit(tx, Event::Saved("灯效已保存"));
+                emit(tx, Event::Saved(gettext("灯效已保存")));
             }
             emit(tx, Event::Busy(false, String::new()));
             result
         }
         Request::CommitMacros { macros, layers } => {
-            emit(tx, Event::Busy(true, "正在保存快捷指令…".to_string()));
+            emit(tx, Event::Busy(true, gettext("正在保存快捷指令…")));
             let mut result = link.write_macros(&macros);
             if result.is_ok() {
                 for (layer, keys) in &layers {
@@ -339,47 +342,47 @@ fn handle_request(
                 }
             }
             if result.is_ok() {
-                emit(tx, Event::Saved("快捷指令已保存"));
+                emit(tx, Event::Saved(gettext("快捷指令已保存")));
             }
             emit(tx, Event::Busy(false, String::new()));
             result
         }
         Request::ResetPerformance => {
             let performance = Performance::from_model_default(model);
-            emit(tx, Event::Busy(true, "正在恢复默认…".to_string()));
+            emit(tx, Event::Busy(true, gettext("正在恢复默认…")));
             let result = link.write_performance(&performance);
             if result.is_ok() {
                 emit(tx, Event::Performance(performance));
-                emit(tx, Event::Saved("性能设置已恢复默认"));
+                emit(tx, Event::Saved(gettext("性能设置已恢复默认")));
             }
             emit(tx, Event::Busy(false, String::new()));
             result
         }
         Request::ResetKeys(layer) => {
             let keys = KeyLayer::from_defaults(model, layer as usize);
-            emit(tx, Event::Busy(true, "正在恢复默认…".to_string()));
+            emit(tx, Event::Busy(true, gettext("正在恢复默认…")));
             let result = link.write_keys(layer, &keys);
             if result.is_ok() {
                 emit(tx, Event::Keys(layer, keys));
-                emit(tx, Event::Saved("按键已恢复默认"));
+                emit(tx, Event::Saved(gettext("按键已恢复默认")));
             }
             emit(tx, Event::Busy(false, String::new()));
             result
         }
         Request::ResetLight => {
             let light = LightState::from_model_default(model);
-            emit(tx, Event::Busy(true, "正在恢复默认…".to_string()));
+            emit(tx, Event::Busy(true, gettext("正在恢复默认…")));
             let result = link.write_light(&light);
             if result.is_ok() {
                 emit(tx, Event::Light(light));
-                emit(tx, Event::Saved("灯效已恢复默认"));
+                emit(tx, Event::Saved(gettext("灯效已恢复默认")));
             }
             emit(tx, Event::Busy(false, String::new()));
             result
         }
     };
     if let Err(e) = result {
-        emit_error(tx, last_error, format!("操作失败：{e}"));
+        emit_error(tx, last_error, tf("操作失败：{}", &[&e]));
         return link.is_present();
     }
     *last_error = String::new();
@@ -440,7 +443,8 @@ fn worker(
                         match WiredLink::open_info(info.clone(), model.report.wired_id) {
                             Ok(new_link) => {
                                 let mut new_link: Box<dyn KeyboardLink> = Box::new(new_link);
-                                sleeping = !announce_link(new_link.as_mut(), &events, &mut last_error);
+                                sleeping =
+                                    !announce_link(new_link.as_mut(), &events, &mut last_error);
                                 link = Some(new_link);
                                 announced_empty = false;
                             }
@@ -486,11 +490,18 @@ fn worker(
                 let Some(current) = link.as_mut() else {
                     emit(
                         &events,
-                        Event::Error("设备未连接，请连接 USB 线或插入 2.4G 接收器".to_string()),
+                        Event::Error(gettext("设备未连接，请连接 USB 线或插入 2.4G 接收器")),
                     );
                     continue;
                 };
-                if !handle_request(request, &model, current, &events, &mut last_error, &mut sleeping) {
+                if !handle_request(
+                    request,
+                    &model,
+                    current,
+                    &events,
+                    &mut last_error,
+                    &mut sleeping,
+                ) {
                     link = None;
                     sleeping = false;
                     emit(&events, Event::Disconnected);

@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
 use crate::macro_table::MacroDef;
+use gettextrs::gettext;
+
 use crate::model::Model;
 use crate::protocol::{Battery, DiyLight, KeyLayer, LightState, Performance};
 
@@ -53,7 +55,7 @@ fn demo_macros() -> Vec<MacroDef> {
     let event = |kind, down| Chip::Event(MacroEvent { kind, down });
     vec![
         MacroDef {
-            name: "连点 A".to_string(),
+            name: gettext("连点 A"),
             chips: vec![
                 event(NodeKind::Key(4), true),
                 Chip::Delay(50),
@@ -62,7 +64,7 @@ fn demo_macros() -> Vec<MacroDef> {
             ],
         },
         MacroDef {
-            name: "复制粘贴".to_string(),
+            name: gettext("复制粘贴"),
             chips: vec![
                 event(NodeKind::Key(224), true),
                 Chip::Delay(50),
@@ -98,14 +100,14 @@ impl KeyboardLink for MockLink {
         self.keys
             .get(layer as usize)
             .cloned()
-            .ok_or(DeviceError::Verify("无效图层"))
+            .ok_or(DeviceError::Verify(gettext("无效图层")))
     }
 
     fn write_keys(&mut self, layer: u8, keys: &KeyLayer) -> Result<(), DeviceError> {
         *self
             .keys
             .get_mut(layer as usize)
-            .ok_or(DeviceError::Verify("无效图层"))? = keys.clone();
+            .ok_or(DeviceError::Verify(gettext("无效图层")))? = keys.clone();
         Ok(())
     }
 

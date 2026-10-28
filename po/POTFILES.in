@@ -1,6 +1,16 @@
 # List of source files containing translatable strings.
 # Please keep this file sorted alphabetically.
-data/top.ddmt.mchosehub.desktop.in
-data/top.ddmt.mchosehub.metainfo.xml.in
-data/top.ddmt.mchosehub.gschema.xml
+#
+# xgettext 读不到 data/models/k99_v2.json，所以型号里的按键与灯效名称在各 .po 末尾
+# 手工登记；改 JSON 里的 label/effect name 时同步这些条目即可。
 src/application.rs
+src/device/hidraw.rs
+src/device/link.rs
+src/device/mock.rs
+src/device/service.rs
+src/macro_table.rs
+src/main.rs
+src/model.rs
+src/protocol.rs
+src/ui/macro_editor.rs
+src/ui/mod.rs

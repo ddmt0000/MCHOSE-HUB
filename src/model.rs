@@ -1,5 +1,7 @@
+use gettextrs::gettext;
 use serde::Deserialize;
 
+use crate::i18n::tf;
 use crate::macro_table::NodeKind;
 
 const MODEL_JSON: &str = include_str!("../data/models/k99_v2.json");
@@ -184,7 +186,7 @@ impl Model {
 
     pub fn action_label(&self, value: [u8; 4]) -> String {
         if value == [0, 0, 0, 0] {
-            return "禁用".to_string();
+            return gettext("禁用");
         }
         for group in [
             &self.actions.basic,
@@ -193,23 +195,27 @@ impl Model {
             &self.actions.system,
         ] {
             if let Some(item) = group.iter().find(|a| a.value == value) {
-                return item.label.clone();
+                return gettext(&item.label);
             }
         }
         match value[0] {
             13 => {
                 if value[1] == 0 {
-                    "Fn 层".to_string()
+                    gettext("Fn 层")
                 } else {
-                    "Fn2 层".to_string()
+                    gettext("Fn2 层")
                 }
             }
-            3 => "宏".to_string(),
-            7 => "Fn 功能".to_string(),
-            8 => "系统功能".to_string(),
+            3 => gettext("宏"),
+            7 => gettext("Fn 功能"),
+            8 => gettext("系统功能"),
             _ => format!(
-                "自定义 {:02X} {:02X} {:02X} {:02X}",
-                value[0], value[1], value[2], value[3]
+                "{} {:02X} {:02X} {:02X} {:02X}",
+                gettext("自定义"),
+                value[0],
+                value[1],
+                value[2],
+                value[3]
             ),
         }
     }
@@ -228,10 +234,10 @@ impl Model {
 
     pub fn node_label(&self, kind: NodeKind) -> String {
         self.node_label_in(kind)
-            .map(str::to_string)
+            .map(gettext)
             .unwrap_or_else(|| match kind {
-                NodeKind::Key(usage) => format!("按键 {usage}"),
-                NodeKind::Mouse(mask) => format!("鼠标键 {mask}"),
+                NodeKind::Key(usage) => tf("按键 {}", &[&usage]),
+                NodeKind::Mouse(mask) => tf("鼠标键 {}", &[&mask]),
             })
     }
 
@@ -248,7 +254,8 @@ impl Model {
             .collect()
     }
 
-    pub fn default_layer(&self, layer: usize) -> Vec<[u8; 4]> {        let raw = &self.defaults.key_layers[layer];
+    pub fn default_layer(&self, layer: usize) -> Vec<[u8; 4]> {
+        let raw = &self.defaults.key_layers[layer];
         raw.as_chunks::<4>()
             .0
             .iter()

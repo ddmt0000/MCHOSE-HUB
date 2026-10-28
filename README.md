@@ -1,88 +1,90 @@
 # MCHOSE HUB for Linux
 
-MCHOSE K99 V2 的 Linux 原生驱动设置程序。使用 Rust + GTK4 + libadwaita 编写，不依赖 Electron、Wine 或浏览器 WebHID。
+English | [简体中文](README-zh.md)
 
-> **非官方项目**：本项目与迈从科技（MCHOSE）无隶属关系。协议与型号数据是通过公开的 HUB 网页客户端分析得到的互操作信息，仓库中不包含官方二进制、前端代码或图片资源。
+A native Linux configuration app for the MCHOSE K99 V2, written in Rust + GTK4 + libadwaita. No Electron, Wine, or browser WebHID required.
 
-**状态：v0.2.0。K99 V2 的 USB 有线与 2.4G 接收器已在真机验证（2026-10-25）；快捷指令与自定义逐键灯效已在模拟设备验证，真机待测（2026-10-27）。**
+> **Unofficial project**: not affiliated with MCHOSE Technology. The protocol and model data are interoperability information derived from analyzing the public HUB web client; this repository contains no official binaries, frontend code, or image assets.
 
-![设备页（模拟设备）](docs/screenshots/device.png)
+**Status: v0.2.0. USB wired and the 2.4G wireless receiver on the K99 V2 are verified on real hardware (2026-10-25); key commands and per-key lighting are verified with the simulated device and still need real-hardware testing (2026-10-27).**
 
-## 功能
+![Device page (simulated device)](docs/screenshots/device.png)
 
-- **设备信息**：型号、当前连接方式、USB 有线 / 2.4G 接收器的发现状态、电量、充电状态、回报率、当前灯效、休眠、Win 锁、Mac 模式。电量每 10 秒自动复读，开始充电与停止充电会弹提示。
-- **双连接发现**：两种接口同时插入时分别显示“已检测到 / 未检测到”；优先使用 USB 有线，有线无法打开时回退到 2.4G 接收器。无线连接期间插入 USB 线会在约 0.5–1 秒内切到有线（键盘推到 OFF 档才走有线，所以有线出现时 2.4G 必然不响应）。
-- **按键**：原生绘制 K99 V2 99 键布局（按功能布局重绘，导航键/方向键的物理位置以实际键盘为准），支持默认层 / Fn 层 / Fn2 层；可改键为键盘键、修饰键、鼠标键、媒体键、快捷功能和禁用。
-- **灯效**：常亮、呼吸、梦幻彩虹、一触即发、雨中漫步、涟漪扩散、繁星流彩、随波逐流、潮汐共振、光影、正弦波、风车、瀑布、繁花、自定义、关闭；可调颜色、亮度、速度、多彩。选中“自定义”后出现 99 键布局与调色板，点击按键上色、再次点击取消。
-- **快捷指令**：在“按键”页的「快捷指令」区录制与维护（列表点进去编辑，右侧垃圾桶删除）；命名 2–15 字符、三种执行类型（按住时循环 / 循环至任意键按下 / 执行一次）、横向节点链。录制时自动记按下与抬起并插入默认 50 ms 间隔，可统一“标准延迟”、可逐节点改延时、可在节点之间插入键盘按键 / 鼠标按键 / 延时。指令名称与节点存在本机 `~/.config/mchose_hub_linux/commands.json`，执行方式与槽位号存在键盘键表里，重开程序还在；删除会把引用它的按键置为禁用并前移后面的槽位。分配在“更改功能”的「指令」页签完成。
-- **性能**：250/500/1000 Hz 回报率、低延迟模式、休眠时间、Win 键锁、Mac 布局（软件交换 Alt/Win）。
-- **恢复默认**：按键分层恢复、性能恢复、灯效颜色恢复。
-- **模拟设备**：无键盘时可完整演示和测试 UI：`--simulate`。
-- **诊断工具**：`--probe` 只读导出（含逐键灯效与快捷指令表），`--probe-write` 原样写回并校验。
+## Features
 
-| 按键 | 灯效 |
+- **Device info**: model, current connection, discovery status of the USB wired and 2.4G receiver interfaces, battery, charging state, polling rate, current lighting effect, sleep, Win lock, Mac mode. Battery is re-read every 10 seconds, and a notification appears when charging starts or stops.
+- **Dual-connection discovery**: when both interfaces are plugged in, each shows "detected / not detected"; USB wired is preferred, falling back to the 2.4G receiver when the wired interface cannot be opened. Plugging in the USB cable while wireless switches to wired within about 0.5–1 s (the keyboard only uses the wired link in the OFF position, so when wired appears the 2.4G link is necessarily unresponsive).
+- **Keys**: a natively drawn 99-key K99 V2 layout (redrawn by functional layout; the physical positions of navigation and arrow keys follow the actual keyboard), with default / Fn / Fn2 layers; a key can be remapped to a keyboard key, a modifier, a mouse button, a media key, a shortcut function, or be disabled.
+- **Lighting**: Static, Breathing, Dreamy rainbow, Instant response, Rainwalk, Ripple, Starflow, Drift, Tidal resonance, Shadows, Sine wave, Pinwheel, Waterfall, Blossom, Custom, Off; color, brightness, speed, and multicolor are adjustable. Selecting "Custom" reveals the 99-key layout and a palette: click a key to paint it, click again to clear it.
+- **Key commands**: record and maintain them in the "Key commands" area of the "Keys" page (click an entry to edit it, use the trash icon on the right to delete it); names are 2–15 characters, with three execution types (repeat while held / repeat until any key / run once) and a horizontal node chain. While recording, presses and releases are captured automatically and default 50 ms gaps are inserted; you can apply a "standard delay" to all nodes, change the delay of individual nodes, and insert keyboard keys / mouse buttons / delays between nodes. Command names and nodes live in `~/.config/mchose_hub_linux/commands.json` on this machine, while the execution type and slot number live in the keyboard's key table, so they survive restarts; deleting a command disables the keys that reference it and shifts later slots forward. Assign them from the "Command" tab of "Change action".
+- **Performance**: 250/500/1000 Hz polling rate, low-latency mode, sleep timeout, Win key lock, Mac layout (software Alt/Win swap).
+- **Restore defaults**: per-layer key restore, performance restore, lighting color restore.
+- **Simulated device**: fully demo and test the UI without a keyboard: `--simulate`.
+- **Diagnostics**: `--probe` exports a read-only dump (including the per-key lighting and key command tables); `--probe-write` writes everything back as-is and verifies it.
+
+| Keys | Lighting |
 |---|---|
-| ![按键页](docs/screenshots/keys.png) | ![灯效页](docs/screenshots/lighting.png) |
+| ![Keys page](docs/screenshots/keys.png) | ![Lighting page](docs/screenshots/lighting.png) |
 
-| 性能 | 设置 |
+| Performance | Settings |
 |---|---|
-| ![性能页](docs/screenshots/performance.png) | ![设置页](docs/screenshots/settings.png) |
+| ![Performance page](docs/screenshots/performance.png) | ![Settings page](docs/screenshots/settings.png) |
 
-*截图为模拟设备与暗色主题。*
+*Screenshots show the simulated device with the dark theme.*
 
-## 支持范围与限制
+## Scope and limitations
 
-支持：
+Supported:
 
-- MCHOSE K99 V2，通过 **USB 有线** 或 **Compx 2.4G Wireless Receiver** 连接；两者同时插入时优先使用有线，设备页会同时显示两种接口的发现状态。
-- 设备在 Linux 中会伪装成 `05ac:024f`（Apple Aluminium Keyboard）。本程序通过产品字符串与厂商 HID 报告识别：无线接收器使用 Report ID 19 的 20 字节输出报告，有线接口使用 Report ID 6 的 519 字节 Feature Report，不会误接管真正的 Apple 键盘。
+- MCHOSE K99 V2 over **USB wired** or the **Compx 2.4G Wireless Receiver**; when both are plugged in, wired is preferred, and the device page shows the discovery status of both interfaces at once.
+- On Linux the device identifies itself as `05ac:024f` (Apple Aluminium Keyboard). The app recognizes it by product string and vendor HID reports: the wireless receiver uses a 20-byte output report with Report ID 19, the wired interface uses a 519-byte Feature Report with Report ID 6, so a real Apple keyboard is never grabbed by mistake.
 
-暂不支持：
+Not supported yet:
 
-- 其他 MCHOSE 型号、磁轴键盘（需要另一套协议与型号数据）。
-- 从键盘读回已存指令的名称与节点：有线 `0x82` 返回的是键表内容，官方前端也从不读回，所以名称只存本机。
-- 删除键盘上本机不认识的指令槽：保存前会提示哪些槽位将被覆盖。
-- 固件刷写 / OTA。
-- 云端配置、音乐律动、GIF 灯效、Windows 音频驱动、THX 等功能。
-- 快捷指令录制只捕获键盘按键；鼠标按键通过节点的“插入鼠标按键”添加。
-- Mac 布局只交换默认层的 Alt/Win（软件实现），不会改变 F1-F12；完整固件 Mac 模式请按键盘的 **Fn + S / Fn + A** 切换。
+- Other MCHOSE models, magnetic-switch keyboards (they need a different protocol and model data).
+- Reading stored command names and nodes back from the keyboard: the wired `0x82` returns the key table contents, and the official frontend never reads them back either, so names are stored locally only.
+- Deleting command slots the app doesn't recognize on the keyboard: before saving, the app warns which slots will be overwritten.
+- Firmware flashing / OTA.
+- Cloud configuration, music reactive lighting, GIF lighting, the Windows audio driver, THX, and other features.
+- Key command recording only captures keyboard keys; mouse buttons are added through the node action "Insert a mouse button".
+- The Mac layout only swaps Alt/Win on the default layer (software implementation) and does not change F1–F12; for the full firmware Mac mode, press **Fn + S / Fn + A** on the keyboard.
 
-无线模式下键盘休眠后厂商通道会停止响应。**按键盘任意键唤醒，再点击右上角刷新按钮。**
-程序用一次 700 ms 探测判定休眠，不会让每条读命令各堵满重试超时；休眠时插拔扫描放缓到 1.5 秒（醒着时 0.9 秒），插有线约 1.5 秒内就会切过去。窗口不在前台时暂停扫描，回到前台立刻补扫一次。
+In wireless mode the vendor channel stops responding once the keyboard sleeps. **Press any key to wake it, then click the refresh button in the top-right corner.**
+The app uses a single 700 ms probe to decide whether the keyboard is asleep, so it doesn't have to sit through the full retry timeout on every read command; while asleep the plug/unplug scan slows to 1.5 s (0.9 s while awake), and plugging in the cable switches over within about 1.5 s. Scanning pauses while the window is in the background and runs immediately when it returns to the foreground.
 
-## 构建与运行
+## Building and running
 
-依赖：
+Dependencies:
 
-- Rust stable，建议使用 [mise](https://mise.jdx.dev/)：`mise install`
-- GTK 4.18+ 与 libadwaita 1.6+ 的开发包（pkg-config 能找到 `gtk4` 与 `libadwaita-1`）
-- Meson / Ninja（可选，用于安装与 Flatpak）
+- Rust stable, [mise](https://mise.jdx.dev/) recommended: `mise install`
+- Development packages for GTK 4.18+ and libadwaita 1.6+ (pkg-config must find `gtk4` and `libadwaita-1`)
+- Meson / Ninja (optional, for installation and Flatpak)
 
-Ubuntu / Debian：
+Ubuntu / Debian:
 
 ```bash
 sudo apt install libgtk-4-dev libadwaita-1-dev meson ninja-build
 ```
 
-Fedora：
+Fedora:
 
 ```bash
 sudo dnf install gtk4-devel libadwaita-devel meson ninja-build
 ```
 
-直接用 Cargo 构建：
+Build with Cargo directly:
 
 ```bash
 mise install
 cargo build --release
-./target/release/mchose_hub_linux            # 真机
-./target/release/mchose_hub_linux --simulate # 模拟设备
-./target/release/mchose_hub_linux --help     # 帮助
+./target/release/mchose_hub_linux            # real device
+./target/release/mchose_hub_linux --simulate # simulated device
+./target/release/mchose_hub_linux --help     # help
 ```
 
-如果系统没有 root 权限安装 libadwaita 开发包，可直接用 GNOME Builder / Flatpak 构建（清单已配置好），或把用户态解包的 dev 包加到 `PKG_CONFIG_PATH` 后再用 Cargo 构建。
+If you can't install the libadwaita development packages with root privileges, build with GNOME Builder / Flatpak instead (the manifest is already set up), or unpack the dev packages into user space, add them to `PKG_CONFIG_PATH`, and build with Cargo.
 
-用 Meson 安装：
+Install with Meson:
 
 ```bash
 meson setup build --prefix="$HOME/.local"
@@ -90,17 +92,29 @@ meson compile -C build
 meson install -C build
 ```
 
-Flatpak / GNOME Builder：
+Flatpak / GNOME Builder:
 
 ```bash
 flatpak-builder --user --install --force-clean builddir top.ddmt.mchosehub.json
 ```
 
-清单已加入 `--device=all`，用于访问 `/dev/hidraw*`（范围较广，发布前可按需收紧）。需要 `org.gnome.Sdk` 50（或可用版本）与 `org.freedesktop.Sdk.Extension.rust-stable`。
+The manifest already includes `--device=all` for access to `/dev/hidraw*` (a broad scope that can be narrowed for releases). It requires `org.gnome.Sdk` 50 (or a compatible version) and `org.freedesktop.Sdk.Extension.rust-stable`.
 
-## HID 权限（udev）
+## Language
 
-部分发行版默认只允许 root 读取 hidraw。安装规则：
+The UI follows the system language (`LC_MESSAGES`, `LANGUAGE`); there is no switch in the settings. Translations live in `po/`: `po/LINGUAS` declares en_US and zh_CN, and `po/POTFILES.in` is the extraction list.
+
+```bash
+ninja -C build mchose_hub_linux-pot      # re-extract msgids
+msgmerge -U po/en_US.po build/po/mchose_hub_linux.pot
+LC_ALL=en_US.UTF-8 ./target/release/mchose_hub_linux   # start with the English UI
+```
+
+The key and lighting effect names in `data/models/k99_v2.json` can't be picked up by xgettext, so they are registered by hand at the end of each `.po` file; keep them in sync when renaming them.
+
+## HID permissions (udev)
+
+Some distributions only allow root to read hidraw by default. To install the rule:
 
 ```bash
 sudo cp udev/70-mchose-hub.rules /etc/udev/rules.d/
@@ -108,110 +122,112 @@ sudo udevadm control --reload-rules
 sudo udevadm trigger
 ```
 
-然后重新插拔键盘。规则内容：
+Then unplug and replug the keyboard. The rule is:
 
 ```udev
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="05ac", ATTRS{idProduct}=="024f", TAG+="uaccess"
 ```
 
-应用内“设置”页也可以复制该规则。当前开发机上 systemd-logind 已通过 ACL 授予当前用户访问权限，因此无需额外配置。
+The "Settings" page in the app can also copy this rule. On the current development machine systemd-logind has already granted the current user access via ACL, so no extra configuration is needed.
 
-## 使用
+## Usage
 
-1. 用 USB 线连接 K99 V2，或插入 2.4G 接收器；无线时按一下键盘任意键唤醒。
-2. 启动程序，等待设备页读取完成。设备页会分别显示 USB 有线与 2.4G 接收器是否被检测到；两种连接同时存在时优先使用有线，无线期间插入 USB 线也会自动切换到有线。
-3. 在“按键 / 灯效 / 性能”页修改；每次修改立即写入键盘，并在写入后回读校验。
-4. 若提示超时，按任意键唤醒键盘后点击刷新。
+1. Connect the K99 V2 with a USB cable, or plug in the 2.4G receiver; on wireless, press any key to wake the keyboard.
+2. Start the app and wait for the device page to finish reading. The device page shows whether the USB wired interface and the 2.4G receiver are detected; when both are present, wired is preferred, and plugging in the USB cable while wireless switches over automatically.
+3. Change settings on the "Keys / Lighting / Performance" pages; every change is written to the keyboard immediately and verified by reading it back.
+4. If the app reports a timeout, press any key to wake the keyboard and click refresh.
 
-修改是逐项立即生效的，没有“保存”按钮。顶部错误提示条与底部 Toast 会显示写入结果或错误。
+Changes apply immediately, item by item, with no "Save" button. The error bar at the top and the bottom toasts show write results or errors.
 
-## 诊断命令
+## Diagnostic commands
 
 ```bash
-# 只读：打印传输方式、电量、性能、灯效颜色、逐键灯效、快捷指令表、三层键表
+# Read-only: print the transport, battery, performance, lighting color, per-key lighting,
+# key command table, and the three key layers
 ./target/release/mchose_hub_linux --probe
 
-# 读取后把性能、三层键表、灯效、逐键灯效、指令表原样写回并校验
-# 不会改变当前设置，用于验证 HID 链路
+# Read everything, then write performance, the three key layers, lighting, per-key lighting,
+# and the command table back unchanged and verify them.
+# Nothing is changed; use it to validate the HID link
 ./target/release/mchose_hub_linux --probe-write
 ```
 
-`--probe` 与 `--probe-write` 不启动 GUI，适合排查权限或休眠问题。`--help` 与 `--version` 输出用法和版本。
+`--probe` and `--probe-write` don't start the GUI and are handy for diagnosing permission or sleep problems. `--help` and `--version` print usage and the version.
 
-## 测试
+## Tests
 
 ```bash
 cargo test
 ```
 
-覆盖：
+Coverage:
 
-- 报文编码/解码、校验和、分包与重组；
-- 有线 Feature Report 的 519 字节请求布局、响应头校验与 HID 描述符识别；
-- 双接口发现、优先有线以及有线无法打开时的无线回退；
-- 设备信息/性能字段偏移、灯效颜色偏移、三层键表编码；
-- 图层选择字节与 YY 编码回归；
-- 快捷指令表：目录寻址、4 字节节点位序（按下/抬起、扩展键、鼠标、三段延时）、名称编码、超大与损坏表拒绝；
-- 逐键灯效：三张 126 字节平面、点击上色/再点取消、27 包 YY=14 的写帧、有线读写头；
-- 模拟设备服务连接事件。
+- Packet encoding/decoding, checksums, chunking and reassembly;
+- the 519-byte wired Feature Report request layout, response header validation, and HID descriptor detection;
+- dual-interface discovery, wired preference, and the wireless fallback when wired can't be opened;
+- device info / performance field offsets, lighting color offsets, and the three-layer key table encoding;
+- layer selector bytes and the YY encoding regression;
+- key command table: directory addressing, 4-byte node bit order (press/release, extended keys, mouse, three-part delays), name encoding, and rejection of oversized and corrupt tables;
+- per-key lighting: three 126-byte planes, click to paint / click again to clear, the 27-frame YY=14 write, and the wired read/write header;
+- connection events of the simulated device service.
 
-断言有效性做过反向对照：把抬起位取反、延时高低字节互换、目录改大端、DIY 写头长度改 378、删掉宏读描述子，每一处都有断言失败（均在修复定稿前跑）。
+The assertions were validated with negative controls: flipping the release bit, swapping the delay high/low bytes, switching the directory to big-endian, changing the DIY write header length to 378, and removing the macro read descriptor each make an assertion fail (all run before the fix was finalized).
 
-真机验证（K99 V2）：
+Real-hardware verification (K99 V2):
 
-- USB 有线：识别 519 字节 Feature Report，读取电量、性能、灯效、默认 / Fn / Fn2 三层键表；性能、三层键表、灯效原样写回并逐字节回读一致；
-- 2.4G 无线：读取电量、性能、灯效、三层键表；性能、三层键表、灯效原样写回并逐字节回读一致；
-- UI 中 Win 键锁开→关，设备页回读状态一致；
-- 设备页同时显示两类接口的发现状态：仅接收器时显示“2.4G 接收器 已检测到 · hidraw5”和“USB 有线 未检测到”（Xvfb + 真机 + OCR 验证）；
-- 有线优先、无线回退与无线期间插线自动切换由选择逻辑单元测试覆盖；双接口同时插入的真机场景尚未复测。
+- USB wired: the 519-byte Feature Report is recognized; battery, performance, lighting, and the default / Fn / Fn2 layers are read; performance, the three layers, and lighting are written back as-is and read back byte-identical;
+- 2.4G wireless: battery, performance, lighting, and the three layers are read; performance, the three layers, and lighting are written back as-is and read back byte-identical;
+- toggling the Win lock in the UI reads back the same state on the device page;
+- the device page shows the discovery status of both interface types at once: with only the receiver plugged in it shows "2.4G wireless receiver detected · hidraw5" and "USB wired not detected" (verified with Xvfb + real hardware + OCR);
+- wired preference, wireless fallback, and the automatic switch when plugging in the cable during wireless use are covered by unit tests of the selection logic; the real-hardware case with both interfaces plugged in has not been retested.
 
-UI 在 Xvfb + 模拟设备下逐页截图并用 OCR 验证了设备页、键盘绘制、动作选择器、灯效页、性能页与写入事件。2026-10-27 用 AT-SPI 验证了按键页的快捷指令区块、“已保存 2 条”、指令页签列出键盘里的两条指令、点击后分配成功且键功能显示为“宏”。录制对话框的节点交互、逐键上色的点击交互、以及筛选后空位不可点这一条**尚未自动验证**（Xvfb 无窗口管理器，指针与键盘焦点都不可靠），需在真桌面复核。
+Each page of the UI was screenshotted under Xvfb with the simulated device, and the device page, keyboard rendering, action picker, lighting page, performance page, and write events were verified with OCR. On 2026-10-27 AT-SPI was used to verify the key command section of the keys page, "2 saved", the command tab listing both commands stored on the keyboard, and that assigning one succeeds and shows the key function as "Macro". The node interactions of the recording dialog, the click-to-paint interaction, and the rule that filtered-out slots can't be clicked are **not yet verified automatically** (Xvfb has no window manager, so pointer and keyboard focus are unreliable); they need a check on a real desktop.
 
-## 架构
+## Architecture
 
 ```
 src/
-  model.rs            型号数据（K99 V2 布局/键表/动作/默认值）
-  protocol.rs         报文、校验、分包、性能/键表/灯效/逐键灯效结构
-  macro_table.rs      快捷指令表：目录+正文编解码、节点位序
+  model.rs            model data (K99 V2 layout/key table/actions/defaults)
+  protocol.rs         packets, checksums, chunking, performance/key table/lighting/per-key lighting structures
+  macro_table.rs      key command table: directory + body codec, node bit order
   device/
-    hidraw.rs         hidraw 枚举、无线/有线识别、Feature Report ioctl
-    link.rs           无线 RealLink、有线 WiredLink、ACK/回读校验
-    mock.rs           模拟设备
-    service.rs        后台设备线程、事件/请求
+    hidraw.rs         hidraw enumeration, wireless/wired detection, Feature Report ioctl
+    link.rs           wireless RealLink, wired WiredLink, ACK/read-back verification
+    mock.rs           simulated device
+    service.rs        background device thread, events/requests
   ui/
-    mod.rs            Adw 窗口、五个页面、事件驱动
-    keyboard.rs       原生可缩放键盘控件（改键显示 / 逐键上色两种模式）
-    macro_editor.rs   快捷指令录制对话框
+    mod.rs            Adw window, five pages, event-driven
+    keyboard.rs       native scalable keyboard widget (remap display / per-key paint modes)
+    macro_editor.rs   key command recording dialog
 data/models/k99_v2.json
-docs/protocol.md      协议说明
+docs/protocol.md      protocol notes
 ```
 
-协议要点（详见 [docs/protocol.md](docs/protocol.md)）：
+Protocol highlights (see [docs/protocol.md](docs/protocol.md)):
 
-- 无线：HID Report ID `0x13`，每次 20 字节输出报告；载荷 19 字节 = `[命令, 总包数, 包序号, YY, 14 字节数据, 校验和]`；校验和 = Report ID + 前 18 字节之和（mod 256）；
-- 有线：HID Report ID `0x06`，519 字节 Feature Report；`[命令, 5 字节 space0, 数据, 0 填充]`，使用 `HIDIOCSFEATURE/HIDIOCGFEATURE`（缓冲区 520 字节，含 Report ID）；
-- 键盘键表 113 槽 × 4 字节，写入时追加 58 字节 0 与 `0x5A 0xA5`；
-- 无线图层通过 YY 高半字节区分（0=默认，1=Fn，2=Fn2），低半字节为本包有效长度；有线图层放在 space0 首字节。
+- Wireless: HID Report ID `0x13`, a 20-byte output report each time; the 19-byte payload is `[command, total packets, packet index, YY, 14 bytes of data, checksum]`; checksum = Report ID + the first 18 bytes (mod 256);
+- Wired: HID Report ID `0x06`, a 519-byte Feature Report; `[command, 5 bytes space0, data, 0 padding]`, using `HIDIOCSFEATURE/HIDIOCGFEATURE` (520-byte buffer including the Report ID);
+- the keyboard key table is 113 slots × 4 bytes, padded with 58 zero bytes and `0x5A 0xA5` when written;
+- wireless layers are distinguished by the high nibble of YY (0 = default, 1 = Fn, 2 = Fn2), while the low nibble is the payload length of the packet; wired layers live in the first byte of space0.
 
-## 数据来源与许可
+## Data sources and licensing
 
-- 协议与型号数据来自对公开 HUB 网页客户端的静态分析，仅用于互操作与 Linux 兼容；仓库不包含官方代码、二进制或图片。
-- 键位、HID 码、默认键值等为设备事实数据；UI、Rust 实现与协议文档为本项目原创。
-- 界面符号图标来自 GNOME Adwaita 图标主题（CC-BY-SA-3.0/4.0 或 LGPL-3.0，署名 GNOME Project），已内置到应用资源，命名参考 GNOME Icon Library 的 dev-kit；详见 `data/icons/mchose/README.md`。
-- 许可证：GNU GPL-3.0-or-later（见 `COPYING`）。
+- Protocol and model data come from static analysis of the public HUB web client and are used only for interoperability and Linux compatibility; the repository contains no official code, binaries, or images.
+- Key positions, HID codes, default key values and similar data are device facts; the UI, the Rust implementation, and the protocol documentation are original to this project.
+- The UI symbolic icons come from the GNOME Adwaita icon theme (CC-BY-SA-3.0/4.0 or LGPL-3.0, credit to the GNOME Project) and are bundled into the app resources; naming follows the GNOME Icon Library dev-kit. See `data/icons/mchose/README.md` for details.
+- License: GNU GPL-3.0-or-later (see `COPYING`).
 
-## 路线图
+## Roadmap
 
-- 快捷指令录制里捕获鼠标按键；
-- 22 款磁轴键盘（Ace / Jet / K / Mix / G / ZERO 系列）；
-- 更多遗留型号；
-- 英文界面与翻译。
+- Capture mouse buttons while recording key commands;
+- 22 magnetic-switch keyboards (Ace / Jet / K / Mix / G / ZERO series);
+- more legacy models;
+- English UI and translations.
 
-欢迎提交 issue / PR，尤其是其他型号的 `--probe` 输出与 HID 描述符。
+Issues and PRs are welcome, especially `--probe` output and HID descriptors for other models.
 
-## 发布前检查
+## Pre-release checklist
 
-- 在 `data/top.ddmt.mchosehub.metainfo.xml.in` 中补充项目主页 `url`，并重新启用 `data/meson.build` 中的 AppStream 校验。
-- 根据目标发行版收紧 Flatpak 的 `--device=all` 权限。
-- 补充英文翻译或说明。
+- Add the project homepage `url` in `data/top.ddmt.mchosehub.metainfo.xml.in` and re-enable the AppStream validation in `data/meson.build`.
+- Narrow the Flatpak `--device=all` permission for the target distributions.
+- Add the English translation or notes.

@@ -1,0 +1,1035 @@
+# MCHOSE HUB for Linux translation catalog.
+# This file is distributed under the same license as the MCHOSE HUB for Linux program.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: mchose_hub_linux 0.2.0\n"
+"Report-Msgid-Bugs-To: https://github.com/ddmt0000/MCHOSE-HUB/issues\n"
+"POT-Creation-Date: 2026-10-28 16:00+0800\n"
+"PO-Revision-Date: 2026-10-28 16:00+0800\n"
+"Last-Translator: ddmt <ddmt@top.ddmt>\n"
+"Language-Team: English\n"
+"Language: en_US\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "非官方 Linux 客户端，用于配置 MCHOSE K99 V2 键盘。"
+msgstr "Unofficial Linux client for the MCHOSE K99 V2 keyboard."
+
+msgid "translator-credits"
+msgstr ""
+
+msgid "2.4G 无线接收器"
+msgstr "2.4G wireless receiver"
+
+msgid "USB 有线"
+msgstr "USB wired"
+
+msgid "模拟设备"
+msgstr "Simulated device"
+
+msgid "未检测到 MCHOSE K99（USB 有线或 2.4G 接收器）"
+msgstr "No MCHOSE K99 found (USB wired or 2.4G receiver)"
+
+msgid "无权访问 {}。请安装 udev 规则或把用户加入 input/plugdev 组。"
+msgstr "No permission to access {}. Install the udev rule or add your user to the input/plugdev group."
+
+msgid "HID 读写失败：{}"
+msgstr "HID read/write failed: {}"
+
+msgid "设备协议错误：{}"
+msgstr "Device protocol error: {}"
+
+msgid "设备无响应，键盘可能已休眠；按任意键唤醒后点击刷新"
+msgstr "The device did not answer; the keyboard may be asleep. Press any key to wake it, then refresh."
+
+msgid "性能设置写回校验失败"
+msgstr "Performance settings failed the read-back check"
+
+msgid "按键写回校验失败"
+msgstr "Key mapping failed the read-back check"
+
+msgid "灯效写回校验失败"
+msgstr "Lighting failed the read-back check"
+
+msgid "逐键灯效写回校验失败"
+msgstr "Per-key lighting failed the read-back check"
+
+msgid "连点 A"
+msgstr "Rapid tap A"
+
+msgid "复制粘贴"
+msgstr "Copy and paste"
+
+msgid "无效图层"
+msgstr "Invalid layer"
+
+msgid "键盘未响应（2.4G 休眠），按任意键唤醒后点击刷新"
+msgstr "The keyboard is not answering (2.4G asleep). Press any key to wake it, then refresh."
+
+msgid "读取电量失败：{}"
+msgstr "Failed to read the battery level: {}"
+
+msgid "读取性能设置失败：{}"
+msgstr "Failed to read the performance settings: {}"
+
+msgid "读取灯效失败：{}"
+msgstr "Failed to read the lighting: {}"
+
+msgid "正在读取设备…"
+msgstr "Reading the device…"
+
+msgid "正在刷新…"
+msgstr "Refreshing…"
+
+msgid "正在读取按键…"
+msgstr "Reading the keys…"
+
+msgid "正在读取逐键灯效…"
+msgstr "Reading the per-key lighting…"
+
+msgid "正在保存逐键灯效…"
+msgstr "Saving the per-key lighting…"
+
+msgid "逐键灯效已保存"
+msgstr "Per-key lighting saved"
+
+msgid "正在保存性能设置…"
+msgstr "Saving the performance settings…"
+
+msgid "性能设置已保存"
+msgstr "Performance settings saved"
+
+msgid "正在保存按键…"
+msgstr "Saving the keys…"
+
+msgid "按键已保存"
+msgstr "Keys saved"
+
+msgid "正在保存灯效…"
+msgstr "Saving the lighting…"
+
+msgid "灯效已保存"
+msgstr "Lighting saved"
+
+msgid "正在保存快捷指令…"
+msgstr "Saving the key commands…"
+
+msgid "快捷指令已保存"
+msgstr "Key commands saved"
+
+msgid "正在恢复默认…"
+msgstr "Restoring the defaults…"
+
+msgid "性能设置已恢复默认"
+msgstr "Performance settings restored to default"
+
+msgid "按键已恢复默认"
+msgstr "Keys restored to default"
+
+msgid "灯效已恢复默认"
+msgstr "Lighting restored to default"
+
+msgid "操作失败：{}"
+msgstr "Action failed: {}"
+
+msgid "设备未连接，请连接 USB 线或插入 2.4G 接收器"
+msgstr "No device connected. Plug in the USB cable or the 2.4G receiver."
+
+msgid "名称需要 2–15 个字符"
+msgstr "The name needs 2–15 characters"
+
+msgid "指令总长 {} 字节，超出键盘可保存的 512 字节"
+msgstr "The commands total {} bytes, over the 512 bytes the keyboard can store"
+
+msgid "键盘中的指令数据无法解析：{}"
+msgstr "The commands stored on the keyboard cannot be parsed: {}"
+
+msgid "按住时循环"
+msgstr "Repeat while held"
+
+msgid "循环至任意键按下"
+msgstr "Repeat until any key"
+
+msgid "执行一次"
+msgstr "Run once"
+
+msgid "按住该键期间反复执行"
+msgstr "Runs again and again while the key is held"
+
+msgid "循环执行直到按下其它键"
+msgstr "Keeps repeating until another key is pressed"
+
+msgid "按下时执行一次"
+msgstr "Runs once per press"
+
+msgid "目录起点无效"
+msgstr "invalid table start"
+
+msgid "目录项不连续或超出数据区"
+msgstr "table entries are not contiguous or run past the data"
+
+msgid "名称长度超出条目"
+msgstr "name length exceeds the entry"
+
+msgid "节点长度无效"
+msgstr "invalid node length"
+
+msgid "未知的节点类型"
+msgstr "unknown node type"
+
+msgid "MCHOSE HUB for Linux {}\n\n用法：\n  mchose_hub_linux                 启动图形界面\n  mchose_hub_linux --simulate      使用模拟设备\n  mchose_hub_linux --probe         只读导出真机数据\n  mchose_hub_linux --probe-write   原样写回并校验（幂等）\n  mchose_hub_linux --version       显示版本"
+msgstr "MCHOSE HUB for Linux {}\n\nUsage:\n  mchose_hub_linux                 start the graphical interface\n  mchose_hub_linux --simulate      use a simulated device\n  mchose_hub_linux --probe         export real device data read-only\n  mchose_hub_linux --probe-write   write the data back and verify (idempotent)\n  mchose_hub_linux --version       show the version"
+
+msgid "禁用"
+msgstr "Disabled"
+
+msgid "Fn 层"
+msgstr "Fn layer"
+
+msgid "Fn2 层"
+msgstr "Fn2 layer"
+
+msgid "宏"
+msgstr "Macro"
+
+msgid "Fn 功能"
+msgstr "Fn function"
+
+msgid "系统功能"
+msgstr "System function"
+
+msgid "自定义"
+msgstr "Custom"
+
+msgid "按键 {}"
+msgstr "Key {}"
+
+msgid "鼠标键 {}"
+msgstr "Mouse button {}"
+
+msgid "报文长度不足：期望 {}，实际 {}"
+msgstr "Short packet: expected {}, got {}"
+
+msgid "校验和不匹配"
+msgstr "Checksum mismatch"
+
+msgid "数据长度不对：{}"
+msgstr "Wrong data length: {}"
+
+msgid "设备响应命令不匹配：期望 {}，实际 {}"
+msgstr "Unexpected reply command: expected {}, got {}"
+
+msgid "按下"
+msgstr "press"
+
+msgid "抬起"
+msgstr "release"
+
+msgid "结束录制"
+msgstr "Stop recording"
+
+msgid "开始录制"
+msgstr "Start recording"
+
+msgid "录制中：按键顺序与抬起自动记录，按 Esc 结束。"
+msgstr "Recording: presses and releases are captured in order. Press Esc to stop."
+
+msgid "鼠标移到节点上可插入或删除。"
+msgstr "Hover a node to insert or remove it."
+
+msgid "还没有节点，录制或手动插入。"
+msgstr "No nodes yet. Record them or insert them by hand."
+
+msgid "节点 {} · 一轮约 {} ms"
+msgstr "{} nodes · one round ≈ {} ms"
+
+msgid "录制或点 + 插入节点"
+msgstr "Record, or press + to insert a node"
+
+msgid "插入鼠标按键"
+msgstr "Insert a mouse button"
+
+msgid "插入键盘按键"
+msgstr "Insert a keyboard key"
+
+msgid "搜索按键…"
+msgstr "Search keys…"
+
+msgid "名称需要 {}–{} 个字符"
+msgstr "The name needs {}–{} characters"
+
+msgid "还没有录制按键"
+msgstr "No keys recorded yet"
+
+msgid "名称重复，请修改名称"
+msgstr "That name is already used; pick another"
+
+msgid "设备未连接，指令已存在本机"
+msgstr "No device connected; the command was kept on this computer"
+
+msgid "点击切换按下 / 抬起"
+msgstr "Click to switch press / release"
+
+msgid "延时"
+msgstr "Delay"
+
+msgid "删除节点"
+msgstr "Remove node"
+
+msgid "在此插入节点"
+msgstr "Insert a node here"
+
+msgid "插入延时"
+msgstr "Insert a delay"
+
+msgid "快捷指令"
+msgstr "Key commands"
+
+msgid "指令"
+msgstr "Command"
+
+msgid "名称"
+msgstr "Name"
+
+msgid "2–15 个字符"
+msgstr "2–15 characters"
+
+msgid "指令类型"
+msgstr "Command type"
+
+msgid "标准延迟"
+msgstr "Standard delay"
+
+msgid "统一使用同一个间隔"
+msgstr "Use the same gap everywhere"
+
+msgid "间隔（ms）"
+msgstr "Gap (ms)"
+
+msgid "节点流程"
+msgstr "Node flow"
+
+msgid "取消"
+msgstr "Cancel"
+
+msgid "保存"
+msgstr "Save"
+
+msgid "红"
+msgstr "Red"
+
+msgid "橙"
+msgstr "Orange"
+
+msgid "黄"
+msgstr "Yellow"
+
+msgid "绿"
+msgstr "Green"
+
+msgid "青"
+msgstr "Cyan"
+
+msgid "蓝"
+msgstr "Blue"
+
+msgid "紫"
+msgstr "Purple"
+
+msgid "设备"
+msgstr "Device"
+
+msgid "按键"
+msgstr "Keys"
+
+msgid "灯效"
+msgstr "Lighting"
+
+msgid "性能"
+msgstr "Performance"
+
+msgid "设置"
+msgstr "Settings"
+
+msgid "刷新设备数据"
+msgstr "Refresh device data"
+
+msgid "关于 MCHOSE HUB"
+msgstr "About MCHOSE HUB"
+
+msgid "退出"
+msgstr "Quit"
+
+msgid "重试"
+msgstr "Retry"
+
+msgid "开始充电"
+msgstr "Charging started"
+
+msgid "停止充电"
+msgstr "Charging stopped"
+
+msgid "设备已断开，请检查 USB 线或 2.4G 接收器"
+msgstr "The device disconnected. Check the USB cable or the 2.4G receiver."
+
+msgid "先选择颜色"
+msgstr "Pick a colour first"
+
+msgid "按键数据尚未读取"
+msgstr "Key data has not been read yet"
+
+msgid "宏 · {}"
+msgstr "Macro · {}"
+
+msgid "宏（槽位 {}，本机无定义）"
+msgstr "Macro (slot {}, not defined on this computer)"
+
+msgid "指令已写入键盘，但本机存储写入失败"
+msgstr "The command reached the keyboard, but saving it on this computer failed"
+
+msgid "键盘上有本机没有的指令"
+msgstr "The keyboard holds commands this computer does not have"
+
+msgid "槽位 {} 不认识，保存会覆盖掉它们。"
+msgstr "Slots {} are unknown; saving will overwrite them."
+
+msgid "继续保存"
+msgstr "Save anyway"
+
+msgid "已检测到 · {}"
+msgstr "Detected · {}"
+
+msgid "已检测到，但无访问权限"
+msgstr "Detected, but no access permission"
+
+msgid "未检测到"
+msgstr "Not detected"
+
+msgid "查看键盘状态与当前配置。"
+msgstr "See the keyboard status and its current settings."
+
+msgid "设备信息"
+msgstr "Device information"
+
+msgid "型号"
+msgstr "Model"
+
+msgid "连接"
+msgstr "Connection"
+
+msgid "2.4G 接收器"
+msgstr "2.4G receiver"
+
+msgid "电量"
+msgstr "Battery"
+
+msgid "充电"
+msgstr "Charging"
+
+msgid "当前配置"
+msgstr "Current settings"
+
+msgid "回报率"
+msgstr "Polling rate"
+
+msgid "休眠"
+msgstr "Sleep"
+
+msgid "Win 键锁"
+msgstr "Win key lock"
+
+msgid "Mac 布局"
+msgstr "Mac layout"
+
+msgid "设备状态"
+msgstr "Device status"
+
+msgid "提示"
+msgstr "Notice"
+
+msgid "键盘休眠时厂商通道不会响应，按任意键唤醒后点击刷新。"
+msgstr "The vendor channel does not answer while the keyboard sleeps. Press any key to wake it, then refresh."
+
+msgid "正在查找设备…"
+msgstr "Looking for the device…"
+
+msgid "请用 USB 线连接 K99 V2，或插入 2.4G 接收器，并按任意键唤醒键盘。"
+msgstr "Connect the K99 V2 with the USB cable or insert its 2.4G receiver, then press any key to wake the keyboard."
+
+msgid "未检测到设备"
+msgstr "No device found"
+
+msgid "充电中"
+msgstr "Charging"
+
+msgid "已充满"
+msgstr "Fully charged"
+
+msgid "未充电"
+msgstr "Not charging"
+
+msgid "{} Hz"
+msgstr "{} Hz"
+
+msgid "模式 {}"
+msgstr "Mode {}"
+
+msgid "从不"
+msgstr "Never"
+
+msgid "{} 分钟"
+msgstr "{} minutes"
+
+msgid "开启"
+msgstr "On"
+
+msgid "关闭"
+msgstr "Off"
+
+msgid "点击键盘上的按键，然后为当前图层指定功能。修改会立即写入键盘。"
+msgstr "Pick a key on the keyboard, then assign it a function for the current layer. Changes are written to the keyboard immediately."
+
+msgid "图层"
+msgstr "Layer"
+
+msgid "当前图层"
+msgstr "Current layer"
+
+msgid "默认层"
+msgstr "Default layer"
+
+msgid "恢复本层默认"
+msgstr "Restore this layer"
+
+msgid "恢复本层默认？"
+msgstr "Restore this layer to default?"
+
+msgid "当前图层的全部按键会恢复为出厂设置。"
+msgstr "Every key on the current layer goes back to its factory setting."
+
+msgid "恢复"
+msgstr "Restore"
+
+msgid "键盘"
+msgstr "Keyboard"
+
+msgid "点击按键进行编辑。"
+msgstr "Click a key to edit it."
+
+msgid "点一条可编辑或删除；在「更改功能」的指令页分配给按键。"
+msgstr "Click one to edit or remove it; assign it to a key on the Commands tab of Change function."
+
+msgid "录制新指令…"
+msgstr "Record a new command…"
+
+msgid "当前按键"
+msgstr "Current key"
+
+msgid "未选择按键"
+msgstr "No key selected"
+
+msgid "点击上方键盘选择"
+msgstr "Choose one on the keyboard above"
+
+msgid "当前功能"
+msgstr "Current function"
+
+msgid "更改功能…"
+msgstr "Change function…"
+
+msgid "恢复此键"
+msgstr "Restore this key"
+
+msgid "键盘上还有本机没有的指令槽，保存会覆盖它们。"
+msgstr "The keyboard still has command slots this computer does not have; saving overwrites them."
+
+msgid "还没有快捷指令"
+msgstr "No key commands yet"
+
+msgid "录制一条后可分配到按键。"
+msgstr "Record one, then assign it to a key."
+
+msgid "{} · {} 个节点"
+msgstr "{} · {} nodes"
+
+msgid "删除"
+msgstr "Delete"
+
+msgid "删除「{}」？"
+msgstr "Delete “{}”?"
+
+msgid "引用这条指令的按键会变成禁用。"
+msgstr "Keys using this command become Disabled."
+
+msgid "设备未连接。"
+msgstr "No device connected."
+
+msgid "选择灯效并调整颜色、亮度与速度。修改会立即写入键盘。"
+msgstr "Choose a lighting effect and adjust its colour, brightness and speed. Changes are written to the keyboard immediately."
+
+msgid "参数"
+msgstr "Parameters"
+
+msgid "亮度"
+msgstr "Brightness"
+
+msgid "速度"
+msgstr "Speed"
+
+msgid "多彩"
+msgstr "Multi colour"
+
+msgid "使用多彩渐变"
+msgstr "Use the multi-colour gradient"
+
+msgid "颜色"
+msgstr "Colour"
+
+msgid "逐键颜色"
+msgstr "Per-key colours"
+
+msgid "自定义颜色"
+msgstr "Custom colour"
+
+msgid "恢复灯效颜色默认值"
+msgstr "Restore the default lighting colours"
+
+msgid "恢复灯效颜色？"
+msgstr "Restore the lighting colours?"
+
+msgid "所有灯效模式的颜色会恢复为出厂设置。"
+msgstr "Every lighting mode's colours go back to their factory settings."
+
+msgid "灯效已关闭。"
+msgstr "Lighting is off."
+
+msgid "当前灯效（{}）不在支持列表中。"
+msgstr "The current lighting mode ({}) is not in the supported list."
+
+msgid "自定义灯效：点击下方键盘为单个按键上色，再次点击取消。"
+msgstr "Custom lighting: click a key below to paint it, click again to clear it."
+
+msgid "该灯效为动态效果，不提供参数调节。"
+msgstr "This effect animates on its own and has no settings."
+
+msgid "等待设备数据…"
+msgstr "Waiting for device data…"
+
+msgid "调整回报率、低延迟、休眠与系统键。"
+msgstr "Adjust the polling rate, latency, sleep time and system keys."
+
+msgid "键盘性能"
+msgstr "Keyboard performance"
+
+msgid "更高的回报率可以降低输入延迟"
+msgstr "A higher polling rate lowers input latency"
+
+msgid "低延迟模式"
+msgstr "Low-latency mode"
+
+msgid "优先降低按键延迟，可能增加功耗"
+msgstr "Prefers lower key latency, at the cost of power"
+
+msgid "休眠时间"
+msgstr "Sleep time"
+
+msgid "分钟；0 表示从不休眠"
+msgstr "Minutes; 0 means never sleep"
+
+msgid "锁定 Windows 键，避免游戏中误触"
+msgstr "Locks the Windows key so games cannot lose it"
+
+msgid "软件交换 Alt/Win；固件切换用 Fn+A / Fn+S"
+msgstr "Swaps Alt/Win in software; use Fn+A / Fn+S for the firmware switch"
+
+msgid "恢复性能默认值"
+msgstr "Restore the performance defaults"
+
+msgid "恢复性能默认值？"
+msgstr "Restore the performance defaults?"
+
+msgid "回报率、低延迟、休眠和系统键设置会恢复为出厂设置。"
+msgstr "Polling rate, latency, sleep and system key settings go back to their factory values."
+
+msgid "支持范围、权限与应用信息。"
+msgstr "Supported features, permissions and application information."
+
+msgid "支持范围"
+msgstr "Supported features"
+
+msgid "{}（USB 有线 / 2.4G 无线）"
+msgstr "{} (USB wired / 2.4G wireless)"
+
+msgid "当前版本支持"
+msgstr "Supported by this version"
+
+msgid "K99 V2 的设置项；固件刷写、云端配置和音频驱动不在支持范围内。"
+msgstr "K99 V2 settings. Firmware flashing, cloud profiles and audio drivers are not supported."
+
+msgid "运行状态"
+msgstr "Runtime state"
+
+msgid "HID 权限"
+msgstr "HID permissions"
+
+msgid "权限不足时"
+msgstr "If access is denied"
+
+msgid "读取设备提示无权限时，请安装以下 udev 规则并重新插拔键盘。"
+msgstr "When reading the device reports a permission error, install the udev rule below and reconnect the keyboard."
+
+msgid "udev 规则"
+msgstr "udev rule"
+
+msgid "复制 udev 规则"
+msgstr "Copy the udev rule"
+
+msgid "已复制 udev 规则"
+msgstr "udev rule copied"
+
+msgid "关于"
+msgstr "About"
+
+msgid "版本"
+msgstr "Version"
+
+msgid "源码仓库"
+msgstr "Source repository"
+
+msgid "非官方项目"
+msgstr "Unofficial project"
+
+msgid "本项目与迈从科技无隶属关系，协议为兼容设备而实现。"
+msgstr "This project is not affiliated with MCHOSE; the protocol is implemented for device compatibility."
+
+msgid "是"
+msgstr "Yes"
+
+msgid "否"
+msgstr "No"
+
+msgid "选择功能"
+msgstr "Choose a function"
+
+msgid "搜索功能…"
+msgstr "Search functions…"
+
+msgid "鼠标"
+msgstr "Mouse"
+
+msgid "媒体"
+msgstr "Media"
+
+msgid "快捷"
+msgstr "Shortcuts"
+
+msgid "先在按键页的「快捷指令」里录制一条。"
+msgstr "Record one first under Key commands on the Keys page."
+
+msgid "{} · {} 个按键"
+msgstr "{} · {} keys"
+
+msgid "点击指令即分配到该按键；编辑请到按键页的「快捷指令」。"
+msgstr "Click a command to assign it to this key; edit them under Key commands on the Keys page."
+
+msgid "设为禁用"
+msgstr "Set to Disabled"
+
+# 以下 msgid 由 data/ 里的资源提供，xgettext 读不到，改这些文案时手工同步。
+# data/models/k99_v2.json 的按键与灯效名称，以及 data/top.ddmt.mchosehub.desktop.in 的条目。
+
+#: data/models/k99_v2.json
+msgid "播放/暂停"
+msgstr "Play / pause"
+
+#: data/models/k99_v2.json
+msgid "静音"
+msgstr "Mute"
+
+#: data/models/k99_v2.json
+msgid "停止"
+msgstr "Stop"
+
+#: data/models/k99_v2.json
+msgid "上一首"
+msgstr "Previous track"
+
+#: data/models/k99_v2.json
+msgid "下一首"
+msgstr "Next track"
+
+#: data/models/k99_v2.json
+msgid "音量+"
+msgstr "Volume up"
+
+#: data/models/k99_v2.json
+msgid "音量-"
+msgstr "Volume down"
+
+#: data/models/k99_v2.json
+msgid "左键"
+msgstr "Left click"
+
+#: data/models/k99_v2.json
+msgid "右键"
+msgstr "Right click"
+
+#: data/models/k99_v2.json
+msgid "中键"
+msgstr "Middle click"
+
+#: data/models/k99_v2.json
+msgid "前进"
+msgstr "Forward"
+
+#: data/models/k99_v2.json
+msgid "后退"
+msgstr "Back"
+
+#: data/models/k99_v2.json
+msgid "滚轮上"
+msgstr "Scroll up"
+
+#: data/models/k99_v2.json
+msgid "滚轮下"
+msgstr "Scroll down"
+
+#: data/models/k99_v2.json
+msgid "缩小"
+msgstr "Zoom out"
+
+#: data/models/k99_v2.json
+msgid "放大"
+msgstr "Zoom in"
+
+#: data/models/k99_v2.json
+msgid "重置"
+msgstr "Reset"
+
+#: data/models/k99_v2.json
+msgid "撤销"
+msgstr "Undo"
+
+#: data/models/k99_v2.json
+msgid "全选"
+msgstr "Select all"
+
+#: data/models/k99_v2.json
+msgid "新建"
+msgstr "New"
+
+#: data/models/k99_v2.json
+msgid "复制"
+msgstr "Copy"
+
+#: data/models/k99_v2.json
+msgid "剪切"
+msgstr "Cut"
+
+#: data/models/k99_v2.json
+msgid "粘贴"
+msgstr "Paste"
+
+#: data/models/k99_v2.json
+msgid "打开"
+msgstr "Open"
+
+#: data/models/k99_v2.json
+msgid "新建项"
+msgstr "New item"
+
+#: data/models/k99_v2.json
+msgid "关闭项"
+msgstr "Close item"
+
+#: data/models/k99_v2.json
+msgid "任务栏"
+msgstr "Taskbar"
+
+#: data/models/k99_v2.json
+msgid "讲述人"
+msgstr "Narrator"
+
+#: data/models/k99_v2.json
+msgid "切换应用"
+msgstr "Switch app"
+
+#: data/models/k99_v2.json
+msgid "操作中心"
+msgstr "Quick settings"
+
+#: data/models/k99_v2.json
+msgid "文件管理器"
+msgstr "File explorer"
+
+#: data/models/k99_v2.json
+msgid "Windows 设置"
+msgstr "Windows settings"
+
+#: data/models/k99_v2.json
+msgid "锁定电脑"
+msgstr "Lock PC"
+
+#: data/models/k99_v2.json
+msgid "投影"
+msgstr "Project"
+
+#: data/models/k99_v2.json
+msgid "系统托盘"
+msgstr "System tray"
+
+#: data/models/k99_v2.json
+msgid "运行"
+msgstr "Run"
+
+#: data/models/k99_v2.json
+msgid "搜索"
+msgstr "Search"
+
+#: data/models/k99_v2.json
+msgid "显示设置"
+msgstr "Display settings"
+
+#: data/models/k99_v2.json
+msgid "上下文菜单"
+msgstr "Context menu"
+
+#: data/models/k99_v2.json
+msgid "表情"
+msgstr "Emoji"
+
+#: data/models/k99_v2.json
+msgid "开始菜单"
+msgstr "Start menu"
+
+#: data/models/k99_v2.json
+msgid "切换窗口"
+msgstr "Switch window"
+
+#: data/models/k99_v2.json
+msgid "关闭窗口"
+msgstr "Close window"
+
+#: data/models/k99_v2.json
+msgid "结束应用"
+msgstr "End task"
+
+#: data/models/k99_v2.json
+msgid "切换下一个应用"
+msgstr "Switch to next app"
+
+#: data/models/k99_v2.json
+msgid "浏览器主页"
+msgstr "Browser home"
+
+#: data/models/k99_v2.json
+msgid "计算器"
+msgstr "Calculator"
+
+#: data/models/k99_v2.json
+msgid "邮件"
+msgstr "Mail"
+
+#: data/models/k99_v2.json
+msgid "此电脑"
+msgstr "This PC"
+
+#: data/models/k99_v2.json
+msgid "收藏夹"
+msgstr "Favorites"
+
+#: data/models/k99_v2.json
+msgid "显示桌面"
+msgstr "Show desktop"
+
+#: data/models/k99_v2.json
+msgid "Windows 安全"
+msgstr "Windows Security"
+
+#: data/models/k99_v2.json
+msgid "任务管理器"
+msgstr "Task manager"
+
+#: data/models/k99_v2.json
+msgid "屏幕亮度+"
+msgstr "Brightness up"
+
+#: data/models/k99_v2.json
+msgid "屏幕亮度-"
+msgstr "Brightness down"
+
+#: data/models/k99_v2.json
+msgid "常亮"
+msgstr "Static"
+
+#: data/models/k99_v2.json
+msgid "呼吸"
+msgstr "Breathing"
+
+#: data/models/k99_v2.json
+msgid "梦幻彩虹"
+msgstr "Dreamy rainbow"
+
+#: data/models/k99_v2.json
+msgid "一触即发"
+msgstr "Instant response"
+
+#: data/models/k99_v2.json
+msgid "雨中漫步"
+msgstr "Rainwalk"
+
+#: data/models/k99_v2.json
+msgid "涟漪扩散"
+msgstr "Ripple"
+
+#: data/models/k99_v2.json
+msgid "繁星流彩"
+msgstr "Starflow"
+
+#: data/models/k99_v2.json
+msgid "随波逐流"
+msgstr "Drift"
+
+#: data/models/k99_v2.json
+msgid "潮汐共振"
+msgstr "Tidal resonance"
+
+#: data/models/k99_v2.json
+msgid "光影"
+msgstr "Shadows"
+
+#: data/models/k99_v2.json
+msgid "正弦波"
+msgstr "Sine wave"
+
+#: data/models/k99_v2.json
+msgid "风车"
+msgstr "Pinwheel"
+
+#: data/models/k99_v2.json
+msgid "瀑布"
+msgstr "Waterfall"
+
+#: data/models/k99_v2.json
+msgid "繁花"
+msgstr "Blossom"
+
+# data/top.ddmt.mchosehub.desktop.in 的条目（键名不带下划线，gettext 0.23 的
+# msgfmt --desktop 按原文取值查目录）。
+
+#: data/top.ddmt.mchosehub.desktop.in
+msgid "MCHOSE HUB"
+msgstr "MCHOSE HUB"
+
+#: data/top.ddmt.mchosehub.desktop.in
+msgid "Configure MCHOSE K99 V2 keyboards"
+msgstr "Configure MCHOSE K99 V2 keyboards"
+
+#: data/top.ddmt.mchosehub.desktop.in
+msgid "MCHOSE;keyboard;K99;HID;driver;"
+msgstr "MCHOSE;keyboard;K99;HID;driver;"
+

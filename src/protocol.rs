@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
 
-use thiserror::Error;
+use gettextrs::gettext;
+use std::fmt;
 
+use crate::i18n::tf;
 use crate::model::Model;
 
 pub const REPORT_ID: u8 = 0x13;
@@ -52,17 +54,32 @@ pub const WIRED_SPACE_DIY_WRITE: [u8; 6] = [0, 0, 1, 0, 0x80, 0x01];
 /// declares a single 4-byte field.
 pub const WIRED_SPACE_MACRO_READ: [u8; 6] = [0, 0, 1, 0, 0x00, 0x02];
 
-#[derive(Debug, Error)]
+#[derive(Debug)]
 pub enum ProtocolError {
-    #[error("报文长度不足：期望 {expected}，实际 {actual}")]
     ShortPacket { expected: usize, actual: usize },
-    #[error("校验和不匹配")]
     BadChecksum,
-    #[error("数据长度不对：{0}")]
     BadLength(usize),
-    #[error("设备响应命令不匹配：期望 {expected:#04x}，实际 {actual:#04x}")]
     UnexpectedCommand { expected: u8, actual: u8 },
 }
+
+impl fmt::Display for ProtocolError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            Self::ShortPacket { expected, actual } => {
+                tf("报文长度不足：期望 {}，实际 {}", &[expected, actual])
+            }
+            Self::BadChecksum => gettext("校验和不匹配"),
+            Self::BadLength(length) => tf("数据长度不对：{}", &[length]),
+            Self::UnexpectedCommand { expected, actual } => tf(
+                "设备响应命令不匹配：期望 {}，实际 {}",
+                &[&format!("{expected:#04x}"), &format!("{actual:#04x}")],
+            ),
+        };
+        f.write_str(&text)
+    }
+}
+
+impl std::error::Error for ProtocolError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Packet {
@@ -897,7 +914,10 @@ mod tests {
         assert_eq!(diy.raw()[0], 255);
         assert_eq!(diy.raw()[DIY_PLANES], 0);
         assert_eq!(diy.raw()[2 * DIY_PLANES + 95], 255);
-        assert_eq!(DiyLight::from_bytes(diy.raw()).unwrap().color(95), Some([0, 0, 255]));
+        assert_eq!(
+            DiyLight::from_bytes(diy.raw()).unwrap().color(95),
+            Some([0, 0, 255])
+        );
         assert_eq!(diy.color(DIY_PLANES), None);
     }
 
@@ -912,7 +932,8 @@ mod tests {
 
     #[test]
     fn diy_write_is_27_full_packets() {
-        let packets = build_write_packets(CMD_SET_DIY, DiyLight::empty().raw(), WriteMode::ExactLast);
+        let packets =
+            build_write_packets(CMD_SET_DIY, DiyLight::empty().raw(), WriteMode::ExactLast);
         assert_eq!(packets.len(), 27);
         assert!(packets.iter().all(|p| p[2] == 27));
         assert!(packets.iter().all(|p| p[4] == 14));
@@ -928,7 +949,10 @@ mod tests {
         let write = wired_diy_write(&diy);
         assert_eq!(&write[..7], &[0x06, 0, 0, 1, 0, 0x80, 0x01]);
         assert_eq!(write[7], 1);
-        assert_eq!(&write[7 + DIY_LEN..], &[0u8; WIRED_REPORT_LEN - 7 - DIY_LEN]);
+        assert_eq!(
+            &write[7 + DIY_LEN..],
+            &[0u8; WIRED_REPORT_LEN - 7 - DIY_LEN]
+        );
 
         let macro_write = wired_macro_writes(&[7u8; 40]).unwrap();
         assert_eq!(macro_write.len(), 1);

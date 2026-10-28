@@ -1,6 +1,9 @@
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
+use std::fmt;
 
+use gettextrs::gettext;
+use serde::{Deserialize, Serialize};
+
+use crate::i18n::{msgid, tf};
 use crate::protocol::MACRO_LEN;
 
 pub const MIN_NAME_CHARS: usize = 2;
@@ -9,15 +12,25 @@ pub const DEFAULT_DELAY_MS: u32 = 50;
 pub const MAX_DELAY_MS: u32 = 60000;
 const ENTRY_LEN: usize = 4;
 
-#[derive(Debug, Error)]
+#[derive(Debug)]
 pub enum MacroError {
-    #[error("名称需要 2–15 个字符")]
     BadName,
-    #[error("指令总长 {0} 字节，超出键盘可保存的 512 字节")]
     TableFull(usize),
-    #[error("键盘中的指令数据无法解析：{0}")]
-    Corrupted(&'static str),
+    Corrupted(String),
 }
+
+impl fmt::Display for MacroError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            Self::BadName => gettext("名称需要 2–15 个字符"),
+            Self::TableFull(len) => tf("指令总长 {} 字节，超出键盘可保存的 512 字节", &[len]),
+            Self::Corrupted(reason) => tf("键盘中的指令数据无法解析：{}", &[reason]),
+        };
+        f.write_str(&text)
+    }
+}
+
+impl std::error::Error for MacroError {}
 
 /// What a node acts on. `Key` holds a HID usage, `Mouse` a button bitmask.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -97,22 +110,24 @@ impl MacroType {
     }
 
     pub fn from_device_byte(byte: u8) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.device_byte() == byte)
+        Self::ALL
+            .into_iter()
+            .find(|kind| kind.device_byte() == byte)
     }
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::HoldLoop => "按住时循环",
-            Self::UntilAnyKey => "循环至任意键按下",
-            Self::Once => "执行一次",
+            Self::HoldLoop => msgid("按住时循环"),
+            Self::UntilAnyKey => msgid("循环至任意键按下"),
+            Self::Once => msgid("执行一次"),
         }
     }
 
     pub fn hint(self) -> &'static str {
         match self {
-            Self::HoldLoop => "按住该键期间反复执行",
-            Self::UntilAnyKey => "循环执行直到按下其它键",
-            Self::Once => "按下时执行一次",
+            Self::HoldLoop => msgid("按住该键期间反复执行"),
+            Self::UntilAnyKey => msgid("循环执行直到按下其它键"),
+            Self::Once => msgid("按下时执行一次"),
         }
     }
 }
@@ -223,7 +238,7 @@ pub fn decode(raw: &[u8]) -> Result<Vec<MacroDef>, MacroError> {
     }
     let dir_len = u16::from_le_bytes([raw[0], raw[1]]) as usize;
     if !dir_len.is_multiple_of(ENTRY_LEN) || dir_len > raw.len() {
-        return Err(MacroError::Corrupted("目录起点无效"));
+        return Err(MacroError::Corrupted(gettext("目录起点无效")));
     }
     let count = dir_len / ENTRY_LEN;
     let mut out = Vec::with_capacity(count);
@@ -233,14 +248,14 @@ pub fn decode(raw: &[u8]) -> Result<Vec<MacroDef>, MacroError> {
         let address = u16::from_le_bytes([raw[base], raw[base + 1]]) as usize;
         let len = u16::from_le_bytes([raw[base + 2], raw[base + 3]]) as usize;
         if address != expected || len < 1 || address + len > raw.len() {
-            return Err(MacroError::Corrupted("目录项不连续或超出数据区"));
+            return Err(MacroError::Corrupted(gettext("目录项不连续或超出数据区")));
         }
         let name_len = raw[address] as usize;
         let Some(nodes_len) = len.checked_sub(1 + name_len) else {
-            return Err(MacroError::Corrupted("名称长度超出条目"));
+            return Err(MacroError::Corrupted(gettext("名称长度超出条目")));
         };
         if !nodes_len.is_multiple_of(ENTRY_LEN) {
-            return Err(MacroError::Corrupted("节点长度无效"));
+            return Err(MacroError::Corrupted(gettext("节点长度无效")));
         }
         let name_start = address + 1;
         let name_end = name_start + name_len;
@@ -248,11 +263,12 @@ pub fn decode(raw: &[u8]) -> Result<Vec<MacroDef>, MacroError> {
         let mut chips = Vec::with_capacity(nodes_len / ENTRY_LEN);
         let (records, _) = raw[name_end..address + len].as_chunks::<ENTRY_LEN>();
         for chunk in records {
-            let delay = ((chunk[0] as u32 & 0x07) << 16) | ((chunk[1] as u32) << 8) | chunk[2] as u32;
+            let delay =
+                ((chunk[0] as u32 & 0x07) << 16) | ((chunk[1] as u32) << 8) | chunk[2] as u32;
             let kind = match (chunk[0] >> 4) & 0x07 {
                 0 | 1 => NodeKind::Key(chunk[3]),
                 2 => NodeKind::Mouse(chunk[3]),
-                _ => return Err(MacroError::Corrupted("未知的节点类型")),
+                _ => return Err(MacroError::Corrupted(gettext("未知的节点类型"))),
             };
             chips.push(Chip::Event(MacroEvent {
                 kind,

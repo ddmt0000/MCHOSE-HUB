@@ -20,12 +20,9 @@ appstream_file = i18n.merge_file(
   install_dir: get_option('datadir') / 'metainfo'
 )
 
-# AppStream validation is not enforced until the project has a public homepage URL.
-# Add a <url type="homepage"> entry to the metainfo file before distribution and
-# re-enable the check below.
-# appstreamcli = find_program('appstreamcli', required: false, disabler: true)
-# test('Validate appstream file', appstreamcli,
-#      args: ['validate', '--no-net', '--explain', appstream_file])
+appstreamcli = find_program('appstreamcli', required: false, disabler: true)
+test('Validate appstream file', appstreamcli,
+     args: ['validate', '--no-net', '--explain', appstream_file])
 
 install_data('top.ddmt.mchosehub.gschema.xml',
   install_dir: get_option('datadir') / 'glib-2.0' / 'schemas'

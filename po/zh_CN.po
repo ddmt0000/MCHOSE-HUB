@@ -1,0 +1,1035 @@
+# MCHOSE HUB for Linux translation catalog.
+# This file is distributed under the same license as the MCHOSE HUB for Linux program.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: mchose_hub_linux 0.2.0\n"
+"Report-Msgid-Bugs-To: https://github.com/ddmt0000/MCHOSE-HUB/issues\n"
+"POT-Creation-Date: 2026-10-28 16:00+0800\n"
+"PO-Revision-Date: 2026-10-28 16:00+0800\n"
+"Last-Translator: ddmt <ddmt@top.ddmt>\n"
+"Language-Team: Chinese (Simplified)\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "非官方 Linux 客户端，用于配置 MCHOSE K99 V2 键盘。"
+msgstr "非官方 Linux 客户端，用于配置 MCHOSE K99 V2 键盘。"
+
+msgid "translator-credits"
+msgstr ""
+
+msgid "2.4G 无线接收器"
+msgstr "2.4G 无线接收器"
+
+msgid "USB 有线"
+msgstr "USB 有线"
+
+msgid "模拟设备"
+msgstr "模拟设备"
+
+msgid "未检测到 MCHOSE K99（USB 有线或 2.4G 接收器）"
+msgstr "未检测到 MCHOSE K99（USB 有线或 2.4G 接收器）"
+
+msgid "无权访问 {}。请安装 udev 规则或把用户加入 input/plugdev 组。"
+msgstr "无权访问 {}。请安装 udev 规则或把用户加入 input/plugdev 组。"
+
+msgid "HID 读写失败：{}"
+msgstr "HID 读写失败：{}"
+
+msgid "设备协议错误：{}"
+msgstr "设备协议错误：{}"
+
+msgid "设备无响应，键盘可能已休眠；按任意键唤醒后点击刷新"
+msgstr "设备无响应，键盘可能已休眠；按任意键唤醒后点击刷新"
+
+msgid "性能设置写回校验失败"
+msgstr "性能设置写回校验失败"
+
+msgid "按键写回校验失败"
+msgstr "按键写回校验失败"
+
+msgid "灯效写回校验失败"
+msgstr "灯效写回校验失败"
+
+msgid "逐键灯效写回校验失败"
+msgstr "逐键灯效写回校验失败"
+
+msgid "连点 A"
+msgstr "连点 A"
+
+msgid "复制粘贴"
+msgstr "复制粘贴"
+
+msgid "无效图层"
+msgstr "无效图层"
+
+msgid "键盘未响应（2.4G 休眠），按任意键唤醒后点击刷新"
+msgstr "键盘未响应（2.4G 休眠），按任意键唤醒后点击刷新"
+
+msgid "读取电量失败：{}"
+msgstr "读取电量失败：{}"
+
+msgid "读取性能设置失败：{}"
+msgstr "读取性能设置失败：{}"
+
+msgid "读取灯效失败：{}"
+msgstr "读取灯效失败：{}"
+
+msgid "正在读取设备…"
+msgstr "正在读取设备…"
+
+msgid "正在刷新…"
+msgstr "正在刷新…"
+
+msgid "正在读取按键…"
+msgstr "正在读取按键…"
+
+msgid "正在读取逐键灯效…"
+msgstr "正在读取逐键灯效…"
+
+msgid "正在保存逐键灯效…"
+msgstr "正在保存逐键灯效…"
+
+msgid "逐键灯效已保存"
+msgstr "逐键灯效已保存"
+
+msgid "正在保存性能设置…"
+msgstr "正在保存性能设置…"
+
+msgid "性能设置已保存"
+msgstr "性能设置已保存"
+
+msgid "正在保存按键…"
+msgstr "正在保存按键…"
+
+msgid "按键已保存"
+msgstr "按键已保存"
+
+msgid "正在保存灯效…"
+msgstr "正在保存灯效…"
+
+msgid "灯效已保存"
+msgstr "灯效已保存"
+
+msgid "正在保存快捷指令…"
+msgstr "正在保存快捷指令…"
+
+msgid "快捷指令已保存"
+msgstr "快捷指令已保存"
+
+msgid "正在恢复默认…"
+msgstr "正在恢复默认…"
+
+msgid "性能设置已恢复默认"
+msgstr "性能设置已恢复默认"
+
+msgid "按键已恢复默认"
+msgstr "按键已恢复默认"
+
+msgid "灯效已恢复默认"
+msgstr "灯效已恢复默认"
+
+msgid "操作失败：{}"
+msgstr "操作失败：{}"
+
+msgid "设备未连接，请连接 USB 线或插入 2.4G 接收器"
+msgstr "设备未连接，请连接 USB 线或插入 2.4G 接收器"
+
+msgid "名称需要 2–15 个字符"
+msgstr "名称需要 2–15 个字符"
+
+msgid "指令总长 {} 字节，超出键盘可保存的 512 字节"
+msgstr "指令总长 {} 字节，超出键盘可保存的 512 字节"
+
+msgid "键盘中的指令数据无法解析：{}"
+msgstr "键盘中的指令数据无法解析：{}"
+
+msgid "按住时循环"
+msgstr "按住时循环"
+
+msgid "循环至任意键按下"
+msgstr "循环至任意键按下"
+
+msgid "执行一次"
+msgstr "执行一次"
+
+msgid "按住该键期间反复执行"
+msgstr "按住该键期间反复执行"
+
+msgid "循环执行直到按下其它键"
+msgstr "循环执行直到按下其它键"
+
+msgid "按下时执行一次"
+msgstr "按下时执行一次"
+
+msgid "目录起点无效"
+msgstr "目录起点无效"
+
+msgid "目录项不连续或超出数据区"
+msgstr "目录项不连续或超出数据区"
+
+msgid "名称长度超出条目"
+msgstr "名称长度超出条目"
+
+msgid "节点长度无效"
+msgstr "节点长度无效"
+
+msgid "未知的节点类型"
+msgstr "未知的节点类型"
+
+msgid "MCHOSE HUB for Linux {}\n\n用法：\n  mchose_hub_linux                 启动图形界面\n  mchose_hub_linux --simulate      使用模拟设备\n  mchose_hub_linux --probe         只读导出真机数据\n  mchose_hub_linux --probe-write   原样写回并校验（幂等）\n  mchose_hub_linux --version       显示版本"
+msgstr "MCHOSE HUB for Linux {}\n\n用法：\n  mchose_hub_linux                 启动图形界面\n  mchose_hub_linux --simulate      使用模拟设备\n  mchose_hub_linux --probe         只读导出真机数据\n  mchose_hub_linux --probe-write   原样写回并校验（幂等）\n  mchose_hub_linux --version       显示版本"
+
+msgid "禁用"
+msgstr "禁用"
+
+msgid "Fn 层"
+msgstr "Fn 层"
+
+msgid "Fn2 层"
+msgstr "Fn2 层"
+
+msgid "宏"
+msgstr "宏"
+
+msgid "Fn 功能"
+msgstr "Fn 功能"
+
+msgid "系统功能"
+msgstr "系统功能"
+
+msgid "自定义"
+msgstr "自定义"
+
+msgid "按键 {}"
+msgstr "按键 {}"
+
+msgid "鼠标键 {}"
+msgstr "鼠标键 {}"
+
+msgid "报文长度不足：期望 {}，实际 {}"
+msgstr "报文长度不足：期望 {}，实际 {}"
+
+msgid "校验和不匹配"
+msgstr "校验和不匹配"
+
+msgid "数据长度不对：{}"
+msgstr "数据长度不对：{}"
+
+msgid "设备响应命令不匹配：期望 {}，实际 {}"
+msgstr "设备响应命令不匹配：期望 {}，实际 {}"
+
+msgid "按下"
+msgstr "按下"
+
+msgid "抬起"
+msgstr "抬起"
+
+msgid "结束录制"
+msgstr "结束录制"
+
+msgid "开始录制"
+msgstr "开始录制"
+
+msgid "录制中：按键顺序与抬起自动记录，按 Esc 结束。"
+msgstr "录制中：按键顺序与抬起自动记录，按 Esc 结束。"
+
+msgid "鼠标移到节点上可插入或删除。"
+msgstr "鼠标移到节点上可插入或删除。"
+
+msgid "还没有节点，录制或手动插入。"
+msgstr "还没有节点，录制或手动插入。"
+
+msgid "节点 {} · 一轮约 {} ms"
+msgstr "节点 {} · 一轮约 {} ms"
+
+msgid "录制或点 + 插入节点"
+msgstr "录制或点 + 插入节点"
+
+msgid "插入鼠标按键"
+msgstr "插入鼠标按键"
+
+msgid "插入键盘按键"
+msgstr "插入键盘按键"
+
+msgid "搜索按键…"
+msgstr "搜索按键…"
+
+msgid "名称需要 {}–{} 个字符"
+msgstr "名称需要 {}–{} 个字符"
+
+msgid "还没有录制按键"
+msgstr "还没有录制按键"
+
+msgid "名称重复，请修改名称"
+msgstr "名称重复，请修改名称"
+
+msgid "设备未连接，指令已存在本机"
+msgstr "设备未连接，指令已存在本机"
+
+msgid "点击切换按下 / 抬起"
+msgstr "点击切换按下 / 抬起"
+
+msgid "延时"
+msgstr "延时"
+
+msgid "删除节点"
+msgstr "删除节点"
+
+msgid "在此插入节点"
+msgstr "在此插入节点"
+
+msgid "插入延时"
+msgstr "插入延时"
+
+msgid "快捷指令"
+msgstr "快捷指令"
+
+msgid "指令"
+msgstr "指令"
+
+msgid "名称"
+msgstr "名称"
+
+msgid "2–15 个字符"
+msgstr "2–15 个字符"
+
+msgid "指令类型"
+msgstr "指令类型"
+
+msgid "标准延迟"
+msgstr "标准延迟"
+
+msgid "统一使用同一个间隔"
+msgstr "统一使用同一个间隔"
+
+msgid "间隔（ms）"
+msgstr "间隔（ms）"
+
+msgid "节点流程"
+msgstr "节点流程"
+
+msgid "取消"
+msgstr "取消"
+
+msgid "保存"
+msgstr "保存"
+
+msgid "红"
+msgstr "红"
+
+msgid "橙"
+msgstr "橙"
+
+msgid "黄"
+msgstr "黄"
+
+msgid "绿"
+msgstr "绿"
+
+msgid "青"
+msgstr "青"
+
+msgid "蓝"
+msgstr "蓝"
+
+msgid "紫"
+msgstr "紫"
+
+msgid "设备"
+msgstr "设备"
+
+msgid "按键"
+msgstr "按键"
+
+msgid "灯效"
+msgstr "灯效"
+
+msgid "性能"
+msgstr "性能"
+
+msgid "设置"
+msgstr "设置"
+
+msgid "刷新设备数据"
+msgstr "刷新设备数据"
+
+msgid "关于 MCHOSE HUB"
+msgstr "关于 MCHOSE HUB"
+
+msgid "退出"
+msgstr "退出"
+
+msgid "重试"
+msgstr "重试"
+
+msgid "开始充电"
+msgstr "开始充电"
+
+msgid "停止充电"
+msgstr "停止充电"
+
+msgid "设备已断开，请检查 USB 线或 2.4G 接收器"
+msgstr "设备已断开，请检查 USB 线或 2.4G 接收器"
+
+msgid "先选择颜色"
+msgstr "先选择颜色"
+
+msgid "按键数据尚未读取"
+msgstr "按键数据尚未读取"
+
+msgid "宏 · {}"
+msgstr "宏 · {}"
+
+msgid "宏（槽位 {}，本机无定义）"
+msgstr "宏（槽位 {}，本机无定义）"
+
+msgid "指令已写入键盘，但本机存储写入失败"
+msgstr "指令已写入键盘，但本机存储写入失败"
+
+msgid "键盘上有本机没有的指令"
+msgstr "键盘上有本机没有的指令"
+
+msgid "槽位 {} 不认识，保存会覆盖掉它们。"
+msgstr "槽位 {} 不认识，保存会覆盖掉它们。"
+
+msgid "继续保存"
+msgstr "继续保存"
+
+msgid "已检测到 · {}"
+msgstr "已检测到 · {}"
+
+msgid "已检测到，但无访问权限"
+msgstr "已检测到，但无访问权限"
+
+msgid "未检测到"
+msgstr "未检测到"
+
+msgid "查看键盘状态与当前配置。"
+msgstr "查看键盘状态与当前配置。"
+
+msgid "设备信息"
+msgstr "设备信息"
+
+msgid "型号"
+msgstr "型号"
+
+msgid "连接"
+msgstr "连接"
+
+msgid "2.4G 接收器"
+msgstr "2.4G 接收器"
+
+msgid "电量"
+msgstr "电量"
+
+msgid "充电"
+msgstr "充电"
+
+msgid "当前配置"
+msgstr "当前配置"
+
+msgid "回报率"
+msgstr "回报率"
+
+msgid "休眠"
+msgstr "休眠"
+
+msgid "Win 键锁"
+msgstr "Win 键锁"
+
+msgid "Mac 布局"
+msgstr "Mac 布局"
+
+msgid "设备状态"
+msgstr "设备状态"
+
+msgid "提示"
+msgstr "提示"
+
+msgid "键盘休眠时厂商通道不会响应，按任意键唤醒后点击刷新。"
+msgstr "键盘休眠时厂商通道不会响应，按任意键唤醒后点击刷新。"
+
+msgid "正在查找设备…"
+msgstr "正在查找设备…"
+
+msgid "请用 USB 线连接 K99 V2，或插入 2.4G 接收器，并按任意键唤醒键盘。"
+msgstr "请用 USB 线连接 K99 V2，或插入 2.4G 接收器，并按任意键唤醒键盘。"
+
+msgid "未检测到设备"
+msgstr "未检测到设备"
+
+msgid "充电中"
+msgstr "充电中"
+
+msgid "已充满"
+msgstr "已充满"
+
+msgid "未充电"
+msgstr "未充电"
+
+msgid "{} Hz"
+msgstr "{} Hz"
+
+msgid "模式 {}"
+msgstr "模式 {}"
+
+msgid "从不"
+msgstr "从不"
+
+msgid "{} 分钟"
+msgstr "{} 分钟"
+
+msgid "开启"
+msgstr "开启"
+
+msgid "关闭"
+msgstr "关闭"
+
+msgid "点击键盘上的按键，然后为当前图层指定功能。修改会立即写入键盘。"
+msgstr "点击键盘上的按键，然后为当前图层指定功能。修改会立即写入键盘。"
+
+msgid "图层"
+msgstr "图层"
+
+msgid "当前图层"
+msgstr "当前图层"
+
+msgid "默认层"
+msgstr "默认层"
+
+msgid "恢复本层默认"
+msgstr "恢复本层默认"
+
+msgid "恢复本层默认？"
+msgstr "恢复本层默认？"
+
+msgid "当前图层的全部按键会恢复为出厂设置。"
+msgstr "当前图层的全部按键会恢复为出厂设置。"
+
+msgid "恢复"
+msgstr "恢复"
+
+msgid "键盘"
+msgstr "键盘"
+
+msgid "点击按键进行编辑。"
+msgstr "点击按键进行编辑。"
+
+msgid "点一条可编辑或删除；在「更改功能」的指令页分配给按键。"
+msgstr "点一条可编辑或删除；在「更改功能」的指令页分配给按键。"
+
+msgid "录制新指令…"
+msgstr "录制新指令…"
+
+msgid "当前按键"
+msgstr "当前按键"
+
+msgid "未选择按键"
+msgstr "未选择按键"
+
+msgid "点击上方键盘选择"
+msgstr "点击上方键盘选择"
+
+msgid "当前功能"
+msgstr "当前功能"
+
+msgid "更改功能…"
+msgstr "更改功能…"
+
+msgid "恢复此键"
+msgstr "恢复此键"
+
+msgid "键盘上还有本机没有的指令槽，保存会覆盖它们。"
+msgstr "键盘上还有本机没有的指令槽，保存会覆盖它们。"
+
+msgid "还没有快捷指令"
+msgstr "还没有快捷指令"
+
+msgid "录制一条后可分配到按键。"
+msgstr "录制一条后可分配到按键。"
+
+msgid "{} · {} 个节点"
+msgstr "{} · {} 个节点"
+
+msgid "删除"
+msgstr "删除"
+
+msgid "删除「{}」？"
+msgstr "删除「{}」？"
+
+msgid "引用这条指令的按键会变成禁用。"
+msgstr "引用这条指令的按键会变成禁用。"
+
+msgid "设备未连接。"
+msgstr "设备未连接。"
+
+msgid "选择灯效并调整颜色、亮度与速度。修改会立即写入键盘。"
+msgstr "选择灯效并调整颜色、亮度与速度。修改会立即写入键盘。"
+
+msgid "参数"
+msgstr "参数"
+
+msgid "亮度"
+msgstr "亮度"
+
+msgid "速度"
+msgstr "速度"
+
+msgid "多彩"
+msgstr "多彩"
+
+msgid "使用多彩渐变"
+msgstr "使用多彩渐变"
+
+msgid "颜色"
+msgstr "颜色"
+
+msgid "逐键颜色"
+msgstr "逐键颜色"
+
+msgid "自定义颜色"
+msgstr "自定义颜色"
+
+msgid "恢复灯效颜色默认值"
+msgstr "恢复灯效颜色默认值"
+
+msgid "恢复灯效颜色？"
+msgstr "恢复灯效颜色？"
+
+msgid "所有灯效模式的颜色会恢复为出厂设置。"
+msgstr "所有灯效模式的颜色会恢复为出厂设置。"
+
+msgid "灯效已关闭。"
+msgstr "灯效已关闭。"
+
+msgid "当前灯效（{}）不在支持列表中。"
+msgstr "当前灯效（{}）不在支持列表中。"
+
+msgid "自定义灯效：点击下方键盘为单个按键上色，再次点击取消。"
+msgstr "自定义灯效：点击下方键盘为单个按键上色，再次点击取消。"
+
+msgid "该灯效为动态效果，不提供参数调节。"
+msgstr "该灯效为动态效果，不提供参数调节。"
+
+msgid "等待设备数据…"
+msgstr "等待设备数据…"
+
+msgid "调整回报率、低延迟、休眠与系统键。"
+msgstr "调整回报率、低延迟、休眠与系统键。"
+
+msgid "键盘性能"
+msgstr "键盘性能"
+
+msgid "更高的回报率可以降低输入延迟"
+msgstr "更高的回报率可以降低输入延迟"
+
+msgid "低延迟模式"
+msgstr "低延迟模式"
+
+msgid "优先降低按键延迟，可能增加功耗"
+msgstr "优先降低按键延迟，可能增加功耗"
+
+msgid "休眠时间"
+msgstr "休眠时间"
+
+msgid "分钟；0 表示从不休眠"
+msgstr "分钟；0 表示从不休眠"
+
+msgid "锁定 Windows 键，避免游戏中误触"
+msgstr "锁定 Windows 键，避免游戏中误触"
+
+msgid "软件交换 Alt/Win；固件切换用 Fn+A / Fn+S"
+msgstr "软件交换 Alt/Win；固件切换用 Fn+A / Fn+S"
+
+msgid "恢复性能默认值"
+msgstr "恢复性能默认值"
+
+msgid "恢复性能默认值？"
+msgstr "恢复性能默认值？"
+
+msgid "回报率、低延迟、休眠和系统键设置会恢复为出厂设置。"
+msgstr "回报率、低延迟、休眠和系统键设置会恢复为出厂设置。"
+
+msgid "支持范围、权限与应用信息。"
+msgstr "支持范围、权限与应用信息。"
+
+msgid "支持范围"
+msgstr "支持范围"
+
+msgid "{}（USB 有线 / 2.4G 无线）"
+msgstr "{}（USB 有线 / 2.4G 无线）"
+
+msgid "当前版本支持"
+msgstr "当前版本支持"
+
+msgid "K99 V2 的设置项；固件刷写、云端配置和音频驱动不在支持范围内。"
+msgstr "K99 V2 的设置项；固件刷写、云端配置和音频驱动不在支持范围内。"
+
+msgid "运行状态"
+msgstr "运行状态"
+
+msgid "HID 权限"
+msgstr "HID 权限"
+
+msgid "权限不足时"
+msgstr "权限不足时"
+
+msgid "读取设备提示无权限时，请安装以下 udev 规则并重新插拔键盘。"
+msgstr "读取设备提示无权限时，请安装以下 udev 规则并重新插拔键盘。"
+
+msgid "udev 规则"
+msgstr "udev 规则"
+
+msgid "复制 udev 规则"
+msgstr "复制 udev 规则"
+
+msgid "已复制 udev 规则"
+msgstr "已复制 udev 规则"
+
+msgid "关于"
+msgstr "关于"
+
+msgid "版本"
+msgstr "版本"
+
+msgid "源码仓库"
+msgstr "源码仓库"
+
+msgid "非官方项目"
+msgstr "非官方项目"
+
+msgid "本项目与迈从科技无隶属关系，协议为兼容设备而实现。"
+msgstr "本项目与迈从科技无隶属关系，协议为兼容设备而实现。"
+
+msgid "是"
+msgstr "是"
+
+msgid "否"
+msgstr "否"
+
+msgid "选择功能"
+msgstr "选择功能"
+
+msgid "搜索功能…"
+msgstr "搜索功能…"
+
+msgid "鼠标"
+msgstr "鼠标"
+
+msgid "媒体"
+msgstr "媒体"
+
+msgid "快捷"
+msgstr "快捷"
+
+msgid "先在按键页的「快捷指令」里录制一条。"
+msgstr "先在按键页的「快捷指令」里录制一条。"
+
+msgid "{} · {} 个按键"
+msgstr "{} · {} 个按键"
+
+msgid "点击指令即分配到该按键；编辑请到按键页的「快捷指令」。"
+msgstr "点击指令即分配到该按键；编辑请到按键页的「快捷指令」。"
+
+msgid "设为禁用"
+msgstr "设为禁用"
+
+# 以下 msgid 由 data/ 里的资源提供，xgettext 读不到，改这些文案时手工同步。
+# data/models/k99_v2.json 的按键与灯效名称，以及 data/top.ddmt.mchosehub.desktop.in 的条目。
+
+#: data/models/k99_v2.json
+msgid "播放/暂停"
+msgstr "播放/暂停"
+
+#: data/models/k99_v2.json
+msgid "静音"
+msgstr "静音"
+
+#: data/models/k99_v2.json
+msgid "停止"
+msgstr "停止"
+
+#: data/models/k99_v2.json
+msgid "上一首"
+msgstr "上一首"
+
+#: data/models/k99_v2.json
+msgid "下一首"
+msgstr "下一首"
+
+#: data/models/k99_v2.json
+msgid "音量+"
+msgstr "音量+"
+
+#: data/models/k99_v2.json
+msgid "音量-"
+msgstr "音量-"
+
+#: data/models/k99_v2.json
+msgid "左键"
+msgstr "左键"
+
+#: data/models/k99_v2.json
+msgid "右键"
+msgstr "右键"
+
+#: data/models/k99_v2.json
+msgid "中键"
+msgstr "中键"
+
+#: data/models/k99_v2.json
+msgid "前进"
+msgstr "前进"
+
+#: data/models/k99_v2.json
+msgid "后退"
+msgstr "后退"
+
+#: data/models/k99_v2.json
+msgid "滚轮上"
+msgstr "滚轮上"
+
+#: data/models/k99_v2.json
+msgid "滚轮下"
+msgstr "滚轮下"
+
+#: data/models/k99_v2.json
+msgid "缩小"
+msgstr "缩小"
+
+#: data/models/k99_v2.json
+msgid "放大"
+msgstr "放大"
+
+#: data/models/k99_v2.json
+msgid "重置"
+msgstr "重置"
+
+#: data/models/k99_v2.json
+msgid "撤销"
+msgstr "撤销"
+
+#: data/models/k99_v2.json
+msgid "全选"
+msgstr "全选"
+
+#: data/models/k99_v2.json
+msgid "新建"
+msgstr "新建"
+
+#: data/models/k99_v2.json
+msgid "复制"
+msgstr "复制"
+
+#: data/models/k99_v2.json
+msgid "剪切"
+msgstr "剪切"
+
+#: data/models/k99_v2.json
+msgid "粘贴"
+msgstr "粘贴"
+
+#: data/models/k99_v2.json
+msgid "打开"
+msgstr "打开"
+
+#: data/models/k99_v2.json
+msgid "新建项"
+msgstr "新建项"
+
+#: data/models/k99_v2.json
+msgid "关闭项"
+msgstr "关闭项"
+
+#: data/models/k99_v2.json
+msgid "任务栏"
+msgstr "任务栏"
+
+#: data/models/k99_v2.json
+msgid "讲述人"
+msgstr "讲述人"
+
+#: data/models/k99_v2.json
+msgid "切换应用"
+msgstr "切换应用"
+
+#: data/models/k99_v2.json
+msgid "操作中心"
+msgstr "操作中心"
+
+#: data/models/k99_v2.json
+msgid "文件管理器"
+msgstr "文件管理器"
+
+#: data/models/k99_v2.json
+msgid "Windows 设置"
+msgstr "Windows 设置"
+
+#: data/models/k99_v2.json
+msgid "锁定电脑"
+msgstr "锁定电脑"
+
+#: data/models/k99_v2.json
+msgid "投影"
+msgstr "投影"
+
+#: data/models/k99_v2.json
+msgid "系统托盘"
+msgstr "系统托盘"
+
+#: data/models/k99_v2.json
+msgid "运行"
+msgstr "运行"
+
+#: data/models/k99_v2.json
+msgid "搜索"
+msgstr "搜索"
+
+#: data/models/k99_v2.json
+msgid "显示设置"
+msgstr "显示设置"
+
+#: data/models/k99_v2.json
+msgid "上下文菜单"
+msgstr "上下文菜单"
+
+#: data/models/k99_v2.json
+msgid "表情"
+msgstr "表情"
+
+#: data/models/k99_v2.json
+msgid "开始菜单"
+msgstr "开始菜单"
+
+#: data/models/k99_v2.json
+msgid "切换窗口"
+msgstr "切换窗口"
+
+#: data/models/k99_v2.json
+msgid "关闭窗口"
+msgstr "关闭窗口"
+
+#: data/models/k99_v2.json
+msgid "结束应用"
+msgstr "结束应用"
+
+#: data/models/k99_v2.json
+msgid "切换下一个应用"
+msgstr "切换下一个应用"
+
+#: data/models/k99_v2.json
+msgid "浏览器主页"
+msgstr "浏览器主页"
+
+#: data/models/k99_v2.json
+msgid "计算器"
+msgstr "计算器"
+
+#: data/models/k99_v2.json
+msgid "邮件"
+msgstr "邮件"
+
+#: data/models/k99_v2.json
+msgid "此电脑"
+msgstr "此电脑"
+
+#: data/models/k99_v2.json
+msgid "收藏夹"
+msgstr "收藏夹"
+
+#: data/models/k99_v2.json
+msgid "显示桌面"
+msgstr "显示桌面"
+
+#: data/models/k99_v2.json
+msgid "Windows 安全"
+msgstr "Windows 安全"
+
+#: data/models/k99_v2.json
+msgid "任务管理器"
+msgstr "任务管理器"
+
+#: data/models/k99_v2.json
+msgid "屏幕亮度+"
+msgstr "屏幕亮度+"
+
+#: data/models/k99_v2.json
+msgid "屏幕亮度-"
+msgstr "屏幕亮度-"
+
+#: data/models/k99_v2.json
+msgid "常亮"
+msgstr "常亮"
+
+#: data/models/k99_v2.json
+msgid "呼吸"
+msgstr "呼吸"
+
+#: data/models/k99_v2.json
+msgid "梦幻彩虹"
+msgstr "梦幻彩虹"
+
+#: data/models/k99_v2.json
+msgid "一触即发"
+msgstr "一触即发"
+
+#: data/models/k99_v2.json
+msgid "雨中漫步"
+msgstr "雨中漫步"
+
+#: data/models/k99_v2.json
+msgid "涟漪扩散"
+msgstr "涟漪扩散"
+
+#: data/models/k99_v2.json
+msgid "繁星流彩"
+msgstr "繁星流彩"
+
+#: data/models/k99_v2.json
+msgid "随波逐流"
+msgstr "随波逐流"
+
+#: data/models/k99_v2.json
+msgid "潮汐共振"
+msgstr "潮汐共振"
+
+#: data/models/k99_v2.json
+msgid "光影"
+msgstr "光影"
+
+#: data/models/k99_v2.json
+msgid "正弦波"
+msgstr "正弦波"
+
+#: data/models/k99_v2.json
+msgid "风车"
+msgstr "风车"
+
+#: data/models/k99_v2.json
+msgid "瀑布"
+msgstr "瀑布"
+
+#: data/models/k99_v2.json
+msgid "繁花"
+msgstr "繁花"
+
+# data/top.ddmt.mchosehub.desktop.in 的条目（键名不带下划线，gettext 0.23 的
+# msgfmt --desktop 按原文取值查目录）。
+
+#: data/top.ddmt.mchosehub.desktop.in
+msgid "MCHOSE HUB"
+msgstr "MCHOSE HUB"
+
+#: data/top.ddmt.mchosehub.desktop.in
+msgid "Configure MCHOSE K99 V2 keyboards"
+msgstr "配置 MCHOSE K99 V2 键盘"
+
+#: data/top.ddmt.mchosehub.desktop.in
+msgid "MCHOSE;keyboard;K99;HID;driver;"
+msgstr "MCHOSE;键盘;迈从;K99;HID;驱动;"
+

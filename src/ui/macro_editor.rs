@@ -3,9 +3,11 @@ use std::rc::{Rc, Weak};
 use std::time::Instant;
 
 use adw::prelude::*;
+use gettextrs::gettext;
 use gtk::{gdk, glib};
 
 use super::{button_flow, connect_search, section, AppUi};
+use crate::i18n::{msgid, tf};
 use crate::macro_table::{
     macro_action, macro_ref, Chip, MacroDef, MacroEvent, MacroType, NodeKind, DEFAULT_DELAY_MS,
     MAX_DELAY_MS, MAX_NAME_CHARS, MIN_NAME_CHARS,
@@ -68,7 +70,10 @@ fn usage_from_keyval(keyval: gdk::Key) -> Option<u8> {
     }
     let name = keyval.name()?;
     let name = name.as_str();
-    if let Some(digit) = name.strip_prefix("KP_").and_then(|rest| rest.chars().next()) {
+    if let Some(digit) = name
+        .strip_prefix("KP_")
+        .and_then(|rest| rest.chars().next())
+    {
         if let Some(value) = digit.to_digit(10) {
             return Some(if value == 0 { 98 } else { 88 + value as u8 });
         }
@@ -123,7 +128,11 @@ fn usage_from_char(c: char) -> Option<u8> {
 }
 
 fn event_label(model: &Model, event: MacroEvent) -> String {
-    let state = if event.down { "按下" } else { "抬起" };
+    let state = if event.down {
+        gettext("按下")
+    } else {
+        gettext("抬起")
+    };
     format!("{}\n{state}", model.node_label(event.kind))
 }
 
@@ -238,7 +247,13 @@ impl Editor {
     fn set_recording(&self, on: bool) {
         self.recording.set(on);
         *self.last_event.borrow_mut() = None;
-        self.record_button.set_label(if on { "结束录制" } else { "开始录制" });
+        self.record_button.set_label(
+            &(if on {
+                gettext("结束录制")
+            } else {
+                gettext("开始录制")
+            }),
+        );
         self.record_button.remove_css_class("destructive-action");
         if on {
             self.record_button.add_css_class("destructive-action");
@@ -247,11 +262,13 @@ impl Editor {
         for widget in &self.paused {
             widget.set_sensitive(!on);
         }
-        self.status.set_text(if on {
-            "录制中：按键顺序与抬起自动记录，按 Esc 结束。"
-        } else {
-            "鼠标移到节点上可插入或删除。"
-        });
+        self.status.set_text(
+            &(if on {
+                gettext("录制中：按键顺序与抬起自动记录，按 Esc 结束。")
+            } else {
+                gettext("鼠标移到节点上可插入或删除。")
+            }),
+        );
     }
 
     fn summary(&self) -> String {
@@ -268,9 +285,9 @@ impl Editor {
             })
             .sum();
         if events == 0 {
-            "还没有节点，录制或手动插入。".to_string()
+            gettext("还没有节点，录制或手动插入。")
         } else {
-            format!("节点 {events} · 一轮约 {total} ms")
+            tf("节点 {} · 一轮约 {} ms", &[&events, &total])
         }
     }
 
@@ -281,7 +298,7 @@ impl Editor {
         if let Some(editor) = self.weak().upgrade() {
             let count = editor.chips.borrow().len();
             if count == 0 {
-                let hint = gtk::Label::new(Some("录制或点 + 插入节点"));
+                let hint = gtk::Label::new(Some(&gettext("录制或点 + 插入节点")));
                 hint.add_css_class("dim-label");
                 hint.add_css_class("macro-hint");
                 self.flow.append(&hint);
@@ -312,12 +329,12 @@ impl Editor {
 
     fn pick_key(self: &Rc<Self>, index: usize, mouse: bool) {
         let choices = self.model.macro_choices(mouse);
-        let labels: Vec<String> = choices.iter().map(|(label, _)| label.clone()).collect();
+        let labels: Vec<String> = choices.iter().map(|(label, _)| gettext(label)).collect();
         let picker = adw::Dialog::builder()
             .title(if mouse {
-                "插入鼠标按键"
+                gettext("插入鼠标按键")
             } else {
-                "插入键盘按键"
+                gettext("插入键盘按键")
             })
             .content_width(560)
             .build();
@@ -327,7 +344,7 @@ impl Editor {
         content.set_margin_start(12);
         content.set_margin_end(12);
         let search = gtk::SearchEntry::new();
-        search.set_placeholder_text(Some("搜索按键…"));
+        search.set_placeholder_text(Some(&gettext("搜索按键…")));
         content.append(&search);
 
         let query = Rc::new(RefCell::new(String::new()));
@@ -340,7 +357,13 @@ impl Editor {
             Rc::new(move |pick: usize| {
                 if let Some(editor) = weak.upgrade() {
                     if let Some((_, kind)) = choices.get(pick) {
-                        editor.insert(index, Chip::Event(MacroEvent { kind: *kind, down: true }));
+                        editor.insert(
+                            index,
+                            Chip::Event(MacroEvent {
+                                kind: *kind,
+                                down: true,
+                            }),
+                        );
                     }
                 }
                 close.close();
@@ -363,12 +386,19 @@ impl Editor {
         let name = self.name.text().trim().to_string();
         let chars = name.chars().count();
         if !(MIN_NAME_CHARS..=MAX_NAME_CHARS).contains(&chars) {
-            self.ui
-                .toast(&format!("名称需要 {MIN_NAME_CHARS}–{MAX_NAME_CHARS} 个字符"));
+            self.ui.toast(&tf(
+                "名称需要 {}–{} 个字符",
+                &[&MIN_NAME_CHARS, &MAX_NAME_CHARS],
+            ));
             return;
         }
-        if !self.chips.borrow().iter().any(|chip| matches!(chip, Chip::Event(_))) {
-            self.ui.toast("还没有录制按键");
+        if !self
+            .chips
+            .borrow()
+            .iter()
+            .any(|chip| matches!(chip, Chip::Event(_)))
+        {
+            self.ui.toast(&gettext("还没有录制按键"));
             return;
         }
         let macros = self.ui.state.borrow().macros.clone();
@@ -377,7 +407,7 @@ impl Editor {
             .enumerate()
             .any(|(index, item)| index != self.slot && item.name == name)
         {
-            self.ui.toast("名称重复，请修改名称");
+            self.ui.toast(&gettext("名称重复，请修改名称"));
             return;
         }
         let mut updated = macros;
@@ -400,7 +430,7 @@ impl Editor {
             state.macro_types[self.slot] = kind;
         }
         if !self.ui.state.borrow().connected {
-            self.ui.toast("设备未连接，指令已存在本机");
+            self.ui.toast(&gettext("设备未连接，指令已存在本机"));
         }
         self.ui.commit_commands(updated, layers);
         self.dialog.close();
@@ -442,7 +472,7 @@ fn node_widget(editor: &Rc<Editor>, index: usize, chip: Chip) -> gtk::Overlay {
         Chip::Event(event) => {
             let button = gtk::Button::with_label(&event_label(&editor.model, event));
             button.add_css_class("macro-chip");
-            button.set_tooltip_text(Some("点击切换按下 / 抬起"));
+            button.set_tooltip_text(Some(&gettext("点击切换按下 / 抬起")));
             let weak = Rc::downgrade(editor);
             button.connect_clicked(move |_| {
                 if let Some(editor) = weak.upgrade() {
@@ -454,7 +484,7 @@ fn node_widget(editor: &Rc<Editor>, index: usize, chip: Chip) -> gtk::Overlay {
         Chip::Delay(ms) => {
             let card = gtk::Box::new(gtk::Orientation::Vertical, 2);
             card.add_css_class("macro-delay");
-            let caption = gtk::Label::new(Some("延时"));
+            let caption = gtk::Label::new(Some(&gettext("延时")));
             caption.add_css_class("dim-label");
             caption.add_css_class("caption");
             let entry = gtk::Entry::new();
@@ -488,7 +518,7 @@ fn node_widget(editor: &Rc<Editor>, index: usize, chip: Chip) -> gtk::Overlay {
     remove.add_css_class("macro-x");
     remove.set_halign(gtk::Align::End);
     remove.set_valign(gtk::Align::Start);
-    remove.set_tooltip_text(Some("删除节点"));
+    remove.set_tooltip_text(Some(&gettext("删除节点")));
     let weak = Rc::downgrade(editor);
     remove.connect_clicked(move |_| {
         if let Some(editor) = weak.upgrade() {
@@ -504,7 +534,7 @@ fn insert_button(editor: &Rc<Editor>, index: usize) -> gtk::MenuButton {
     button.set_icon_name("list-add-symbolic");
     button.add_css_class("flat");
     button.add_css_class("macro-insert");
-    button.set_tooltip_text(Some("在此插入节点"));
+    button.set_tooltip_text(Some(&gettext("在此插入节点")));
 
     let popover = gtk::Popover::new();
     let content = gtk::Box::new(gtk::Orientation::Vertical, 2);
@@ -514,8 +544,12 @@ fn insert_button(editor: &Rc<Editor>, index: usize) -> gtk::MenuButton {
     content.set_margin_end(6);
     popover.set_child(Some(&content));
 
-    for (label, which) in [("插入键盘按键", 0u8), ("插入鼠标按键", 1), ("插入延时", 2)] {
-        let item = gtk::Button::with_label(label);
+    for (label, which) in [
+        (msgid("插入键盘按键"), 0u8),
+        (msgid("插入鼠标按键"), 1),
+        (msgid("插入延时"), 2),
+    ] {
+        let item = gtk::Button::with_label(&gettext(label));
         item.add_css_class("flat");
         item.set_halign(gtk::Align::Fill);
         let weak = Rc::downgrade(editor);
@@ -547,7 +581,7 @@ pub fn open(ui: &Rc<AppUi>, slot: Option<usize>) {
     };
 
     let dialog = adw::Dialog::builder()
-        .title("快捷指令")
+        .title(gettext("快捷指令"))
         .content_width(640)
         .build();
     let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
@@ -556,13 +590,13 @@ pub fn open(ui: &Rc<AppUi>, slot: Option<usize>) {
     content.set_margin_start(12);
     content.set_margin_end(12);
 
-    let naming = section(&content, "指令");
-    let name_row = adw::ActionRow::builder().title("名称").build();
+    let naming = section(&content, &gettext("指令"));
+    let name_row = adw::ActionRow::builder().title(gettext("名称")).build();
     let name = gtk::Entry::new();
     name.set_width_chars(18);
     name.set_max_length(MAX_NAME_CHARS as i32);
     name.set_valign(gtk::Align::Center);
-    name.set_placeholder_text(Some("2–15 个字符"));
+    name.set_placeholder_text(Some(&gettext("2–15 个字符")));
     let counter = gtk::Label::new(Some("0/15"));
     counter.add_css_class("dim-label");
     counter.add_css_class("caption");
@@ -572,30 +606,33 @@ pub fn open(ui: &Rc<AppUi>, slot: Option<usize>) {
     naming.add(&name_row);
 
     let kind_row = adw::ComboRow::new();
-    kind_row.set_title("指令类型");
-    kind_row.set_model(Some(&gtk::StringList::new(&MacroType::ALL.map(MacroType::label))));
-    kind_row.set_subtitle(kind.hint());
+    kind_row.set_title(&gettext("指令类型"));
+    let kinds = MacroType::ALL.map(|kind| gettext(kind.label()));
+    kind_row.set_model(Some(&gtk::StringList::new(
+        &kinds.iter().map(String::as_str).collect::<Vec<_>>(),
+    )));
+    kind_row.set_subtitle(&gettext(kind.hint()));
     naming.add(&kind_row);
 
     let standard = adw::SwitchRow::builder()
-        .title("标准延迟")
-        .subtitle("统一使用同一个间隔")
+        .title(gettext("标准延迟"))
+        .subtitle(gettext("统一使用同一个间隔"))
         .build();
     standard.set_active(true);
     naming.add(&standard);
 
     let gap = adw::SpinRow::with_range(1.0, MAX_DELAY_MS as f64, 10.0);
-    gap.set_title("间隔（ms）");
+    gap.set_title(&gettext("间隔（ms）"));
     gap.set_value(DEFAULT_DELAY_MS as f64);
     naming.add(&gap);
 
-    let flow = section(&content, "节点流程");
+    let flow = section(&content, &gettext("节点流程"));
     let toolbar = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     toolbar.set_margin_top(14);
     toolbar.set_margin_bottom(6);
     toolbar.set_margin_start(6);
     toolbar.set_margin_end(6);
-    let record_button = gtk::Button::with_label("开始录制");
+    let record_button = gtk::Button::with_label(&gettext("开始录制"));
     toolbar.append(&record_button);
     let status = gtk::Label::new(None);
     status.add_css_class("dim-label");
@@ -620,8 +657,8 @@ pub fn open(ui: &Rc<AppUi>, slot: Option<usize>) {
 
     let footer = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     footer.set_halign(gtk::Align::End);
-    let cancel = gtk::Button::with_label("取消");
-    let save = gtk::Button::with_label("保存");
+    let cancel = gtk::Button::with_label(&gettext("取消"));
+    let save = gtk::Button::with_label(&gettext("保存"));
     save.add_css_class("suggested-action");
     footer.append(&cancel);
     footer.append(&save);
@@ -668,8 +705,8 @@ pub fn open(ui: &Rc<AppUi>, slot: Option<usize>) {
     kind_row.connect_selected_notify(move |row| {
         let hint = MacroType::ALL
             .get(row.selected() as usize)
-            .map_or("", |known| known.hint());
-        kind_for_hint.set_subtitle(hint);
+            .map_or_else(String::new, |known| gettext(known.hint()));
+        kind_for_hint.set_subtitle(&hint);
     });
     kind_row.set_selected(
         MacroType::ALL

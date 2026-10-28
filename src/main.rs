@@ -21,6 +21,7 @@
 mod application;
 mod config;
 mod device;
+mod i18n;
 mod macro_store;
 mod macro_table;
 mod model;
@@ -34,14 +35,24 @@ use config::{GETTEXT_PACKAGE, LOCALEDIR};
 use gettextrs::{bind_textdomain_codeset, bindtextdomain, textdomain};
 use gtk::prelude::*;
 use gtk::{gio, glib};
+use i18n::tf;
 
 fn main() -> glib::ExitCode {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
+    // 先绑好译文再解析参数，--help 才能跟着系统语言走；best-effort 让构建目录里也能跑。
+    let _ = gettextrs::setlocale(gettextrs::LocaleCategory::LcAll, "");
+    let _ = bindtextdomain(GETTEXT_PACKAGE, LOCALEDIR);
+    let _ = bind_textdomain_codeset(GETTEXT_PACKAGE, "UTF-8");
+    let _ = textdomain(GETTEXT_PACKAGE);
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--help" || a == "-h") {
         println!(
-            "MCHOSE HUB for Linux {}\n\n用法：\n  mchose_hub_linux                 启动图形界面\n  mchose_hub_linux --simulate      使用模拟设备\n  mchose_hub_linux --probe         只读导出真机数据\n  mchose_hub_linux --probe-write   原样写回并校验（幂等）\n  mchose_hub_linux --version       显示版本",
-            config::VERSION
+            "{}",
+            tf(
+                "MCHOSE HUB for Linux {}\n\n用法：\n  mchose_hub_linux                 启动图形界面\n  mchose_hub_linux --simulate      使用模拟设备\n  mchose_hub_linux --probe         只读导出真机数据\n  mchose_hub_linux --probe-write   原样写回并校验（幂等）\n  mchose_hub_linux --version       显示版本",
+                &[&config::VERSION]
+            )
         );
         return glib::ExitCode::SUCCESS;
     }
@@ -58,11 +69,6 @@ fn main() -> glib::ExitCode {
     let icons = gio::Resource::from_data(&glib::Bytes::from_static(icon_data))
         .expect("Could not parse icon resources");
     gio::resources_register(&icons);
-
-    // Translation setup is best-effort so the app also runs from a build tree.
-    let _ = bindtextdomain(GETTEXT_PACKAGE, LOCALEDIR);
-    let _ = bind_textdomain_codeset(GETTEXT_PACKAGE, "UTF-8");
-    let _ = textdomain(GETTEXT_PACKAGE);
 
     // Create a new GtkApplication. The application manages our main loop,
     // application windows, integration with the window manager/compositor, and
