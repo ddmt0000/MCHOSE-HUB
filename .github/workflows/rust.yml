@@ -100,7 +100,12 @@ jobs:
           tar -C "$DIST" -czf "$DIST/$ARCHIVE.tar.gz" "$ARCHIVE"
 
           # 2. Debian package
-          DEBROOT="$DIST/deb-root"
+          # dpkg-shlibdeps only runs inside a Debian source tree: without a
+          # debian/control in the working directory it aborts outright (measured
+          # with dpkg 1.23.7: exit status 25, and neither --package nor -tdeb
+          # gets around it). So the tree is laid out as deb-src/debian/<pkg>/
+          # and dpkg-deb packs that last level.
+          DEBROOT="$DIST/deb-src/debian/mchose-hub-linux"
           mkdir -p "$DEBROOT/usr/bin"
           mkdir -p "$DEBROOT/usr/share/applications"
           mkdir -p "$DEBROOT/usr/share/doc/mchose-hub-linux"
@@ -122,14 +127,31 @@ jobs:
           Comment=Configure MCHOSE K99 V2 on Linux
           Exec=mchose_hub_linux
           Terminal=false
-          Categories=Utility;Settings;HardwareSettings;
+          Categories=Settings;HardwareSettings;
           EOF
 
           desktop-file-validate \
             "$DEBROOT/usr/share/applications/$APP_ID.desktop"
 
-          # Calculate shared-library dependencies from the built executable.
-          DEPS="$(dpkg-shlibdeps -O "target/release/$BIN" \
+          # Minimal source stanza: dpkg-shlibdeps reads debian/control to know
+          # which binary package the analyzed executable belongs to.
+          cat > "$DIST/deb-src/debian/control" <<'EOF'
+          Source: mchose-hub-linux
+          Section: utils
+          Priority: optional
+          Maintainer: MCHOSE-HUB contributors
+          Build-Depends: debhelper (>= 12)
+
+          Package: mchose-hub-linux
+          Architecture: any
+          Description: Native Linux configuration tool for MCHOSE K99 V2
+           Rust and GTK4 application for configuring compatible keyboards.
+          EOF
+
+          # Calculate shared-library dependencies from the built executable,
+          # from the tree root and with -e so dpkg-shlibdeps takes it as
+          # package content rather than a stray file.
+          DEPS="$(cd "$DIST/deb-src" && dpkg-shlibdeps -O -e"$DEBROOT/usr/bin/$BIN" \
             | sed -n 's/^shlibs:Depends=//p')"
 
           if [ -z "$DEPS" ]; then
